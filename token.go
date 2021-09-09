@@ -4,6 +4,7 @@ import (
 	"crypto/md5"
 	"encoding/hex"
 	"time"
+	"fmt"
 )
 
 const overtime = 900
@@ -12,16 +13,23 @@ type token_T struct {
 	hash [16]byte
 	account string
 	timestamp int64
+	networking string
 }
 
-func validation(account, key string) bool {
+func validation(account, key, networking string) bool {
 	for k, t := range tokens {
 		if k == key {
 			if account != t.account {
 				return false
 			}
 
-			if time.Now().Unix() - t.timestamp > 900 {
+			if networking != t.networking {
+				return false
+			}
+
+			now := time.Now().Unix()
+			fmt.Println(now, t.timestamp)
+			if now - t.timestamp > 900 {
 				delete(tokens, key)
 				return false
 			}

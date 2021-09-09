@@ -1,6 +1,7 @@
 package main
 
 import (
+	"io"
 	"crypto/md5"
 	"encoding/hex"
 	"net/http"
@@ -11,14 +12,26 @@ import (
 	"github.com/gin-contrib/cors"
 )
 
+const (
+//	PORT = ":80"
+	PORT = ":8887"
+//	WEBPORT = ":8888"
+	WEBPORT = ":10000"
+)
+
+type event_T struct {
+	ID      int
+	Message string
+}
+
 func runHTTP() {
 	r := gin.Default()
 	r.Use(cors.Default())
 	r.POST("/signin", signIn)
-	r.GET("/getcapitalb", getCapitalB)
-	r.GET("/getlowcaseb", getLowcaseB)
+	r.POST("/checksignin", checkSignIn)
+	r.GET("/sse", sseHandler)
 	r.GET("/testapi", testAPI)
-	r.Run(":8888")
+	r.Run(PORT)
 }
 
 func signIn(c *gin.Context) {
@@ -37,7 +50,7 @@ func signIn(c *gin.Context) {
 		}
 	}
 
-	token := &token_T {account: accountP, timestamp: time.Now().Unix()}
+	token := &token_T {account: accountP, timestamp: time.Now().Unix(), networking: c.ClientIP() + WEBPORT}
 
 	data := []byte(accountP)
 	data = append(data, uint64ToBytes(uint64(token.timestamp))...)
@@ -47,14 +60,14 @@ func signIn(c *gin.Context) {
 
 	tokens[key] = token
 
-	c.Redirect(http.StatusMovedPermanently, "http://47.98.204.151/signinsuccess.html?key=" + key + "&account=" + accountP)
+	c.Redirect(http.StatusMovedPermanently, "http://47.98.204.151" + WEBPORT + "/signinsuccess.html?key=" + key + "&account=" + accountP)
 }
 
-func getCapitalB(c *gin.Context) {
+func checkSignIn(c *gin.Context) {
 	account := c.Query("account")
 	key := c.Query("key")
 
-	if !validation(account, key) {
+	if !validation(account, key, c.ClientIP() + WEBPORT) {
 		c.JSON(http.StatusOK, gin.H {
 			"success": false,
 			"message": "not auth",
@@ -65,32 +78,87 @@ func getCapitalB(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H {
 		"success": true,
 		"message": "ok",
+	})
+}
+
+func testAPI(c *gin.Context) {
+	return
+}
+
+func sseHandler(c *gin.Context) {
+	c.Writer.Header().Set("Content-Type", "text/event-stream")
+	c.Writer.Header().Set("Connection", "keep-alive")
+	c.Writer.Header().Set("Cache-Control", "no-cache")
+//	c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+
+	for _, token := range tokens {
+		if token.networking == c.ClientIP() + WEBPORT {
+			c.Stream(func(w io.Writer) bool {
+				getCapitalB(c)
+				getLowcaseB(c)
+				getPutIn(c)
+				getSettled(c)
+				getRewarded(c)
+				getFilPrice(c)
+
+				time.Sleep(time.Second)
+				c.Writer.(http.Flusher).Flush()
+
+				return true
+			})
+
+			break
+		}
+	}
+}
+
+func getCapitalB(c *gin.Context) {
+	c.SSEvent("capitalb", gin.H {
+		"success": true,
+		"message": "ok",
 		"data": gin.H {
-			"locked": 500,
-			"unlocked": 400,
+			"locked": 100,
+			"unlocked": 700,
 		},
 	})
 }
 
 func getLowcaseB(c *gin.Context) {
-	account := c.Query("account")
-	key := c.Query("key")
-
-	if !validation(account, key) {
-		c.JSON(http.StatusOK, gin.H {
-			"success": false,
-			"message": "not auth",
-		})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H {
+	c.SSEvent("lowcaseb", gin.H {
 		"success": true,
 		"message": "ok",
 		"data": 100,
 	})
 }
 
-func testAPI(c *gin.Context) {
-	return
+func getPutIn(c *gin.Context) {
+	c.SSEvent("totalputin", gin.H {
+		"success": true,
+		"message": "ok",
+		"data": 10000,
+	})
+}
+
+func getSettled(c *gin.Context) {
+	c.SSEvent("settled", gin.H {
+		"success": true,
+		"message": "ok",
+		"data": 1000,
+	})
+}
+
+func getRewarded(c *gin.Context) {
+	c.SSEvent("rewarded", gin.H {
+		"success": true,
+		"message": "ok",
+		"data": 1000,
+	})
+}
+
+func getFilPrice(c *gin.Context) {
+	c.SSEvent("filprice", gin.H {
+		"success": true,
+		"message": "ok",
+		"data": 1000.23,
+	})
 }
