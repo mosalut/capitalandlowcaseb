@@ -13,9 +13,9 @@ import (
 )
 
 const (
-//	PORT = ":80"
+//	PORT = ":8888"
 	PORT = ":8887"
-//	WEBPORT = ":8888"
+//	WEBPORT = ":80"
 	WEBPORT = ":10000"
 )
 
@@ -31,6 +31,7 @@ func runHTTP() {
 	r.POST("/checksignin", checkSignIn)
 	r.GET("/sse", sseHandler)
 	r.GET("/testapi", testAPI)
+	r.GET("/cirulations", getCirulations)
 	r.Run(PORT)
 }
 
@@ -63,22 +64,46 @@ func signIn(c *gin.Context) {
 	c.Redirect(http.StatusMovedPermanently, "http://47.98.204.151" + WEBPORT + "/signinsuccess.html?key=" + key + "&account=" + accountP)
 }
 
-func checkSignIn(c *gin.Context) {
-	account := c.Query("account")
-	key := c.Query("key")
-
+func checkSignInOK(c *gin.Context, account, key string) bool {
 	if !validation(account, key, c.ClientIP() + WEBPORT) {
 		c.JSON(http.StatusOK, gin.H {
 			"success": false,
 			"message": "not auth",
 		})
-		return
+		return false
 	}
 
-	c.JSON(http.StatusOK, gin.H {
-		"success": true,
-		"message": "ok",
-	})
+	return true
+}
+
+func checkSignIn(c *gin.Context) {
+	account := c.PostForm("account")
+	key := c.PostForm("key")
+	if checkSignInOK(c, account, key) {
+		c.JSON(http.StatusOK, gin.H {
+			"success": true,
+			"message": "ok",
+		})
+	}
+}
+
+func getCirulations (c *gin.Context) {
+	account := c.Query("account")
+	key := c.Query("key")
+	if checkSignInOK(c, account, key) {
+		cirulations, err := getCirulationData()
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+
+		fmt.Println(cirulations)
+		c.JSON(http.StatusOK, gin.H {
+			"success": true,
+			"message": "ok",
+			"data": cirulations,
+		})
+	}
 }
 
 func testAPI(c *gin.Context) {

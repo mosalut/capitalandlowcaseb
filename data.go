@@ -1,33 +1,34 @@
 package main
 
 import (
-//	"crypto/rand"
+	"crypto/rand"
+	"math/big"
 )
 
 // 最新流通性
-/*
 func getCirulationData() ([]float64, error) {
-	balances make([]float64, 24, 24)
+	balances := make([]float64, 24, 24)
 
-	for i, balances := range balances {
+	for i, _ := range balances {
 		max := big.NewInt(65536)
-		intergerI, err := rand.Int(rand.Reader, max)
+		integerI, err := rand.Int(rand.Reader, max)
 		if err != nil {
-			return 0, err
+			return nil, err
 		}
 		decimalI, err := rand.Int(rand.Reader, max)
 		if err != nil {
-			return 0, err
+			return nil, err
 		}
 
-		intergerF := big.NewFloat(intergerI.String())
-		decimalF := big.NewFloat(decimalI.String())
+		integerF := big.NewFloat(0)
+		integerF.SetInt(integerI)
+		decimalF := big.NewFloat(0)
+		decimalF.SetInt(decimalI)
 
-		balances[i] = intergerF.Float64() + decimalF.Float64() / 100000
+		integer, _ := integerF.Float64()
+		decimal, _ := decimalF.Float64()
+		balances[i] = integer + decimal / 100000
 	}
-
-	fmt.Println(balances)
 
 	return balances, nil
 }
-*/
