@@ -32,6 +32,8 @@ func runHTTP() {
 	r.GET("/sse", sseHandler)
 	r.GET("/testapi", testAPI)
 	r.GET("/cirulations", getCirulations)
+	r.GET("/worthdeposits", getWorthDeposits)
+	r.GET("/drawns", getDrawns)
 	r.Run(PORT)
 }
 
@@ -106,6 +108,44 @@ func getCirulations (c *gin.Context) {
 	}
 }
 
+func getWorthDeposits (c *gin.Context) {
+	account := c.Query("account")
+	key := c.Query("key")
+	if checkSignInOK(c, account, key) {
+		worthDeposits, err := getWorthDepositData()
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+
+		fmt.Println(worthDeposits)
+		c.JSON(http.StatusOK, gin.H {
+			"success": true,
+			"message": "ok",
+			"data": worthDeposits,
+		})
+	}
+}
+
+func getDrawns (c *gin.Context) {
+	account := c.Query("account")
+	key := c.Query("key")
+	if checkSignInOK(c, account, key) {
+		drawns, err := getDrawnData()
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+
+		fmt.Println(drawns)
+		c.JSON(http.StatusOK, gin.H {
+			"success": true,
+			"message": "ok",
+			"data": drawns,
+		})
+	}
+}
+
 func testAPI(c *gin.Context) {
 	return
 }
@@ -119,12 +159,15 @@ func sseHandler(c *gin.Context) {
 	for _, token := range tokens {
 		if token.networking == c.ClientIP() + WEBPORT {
 			c.Stream(func(w io.Writer) bool {
-				getCapitalB(c)
-				getLowcaseB(c)
-				getPutIn(c)
-				getSettled(c)
-				getRewarded(c)
-				getFilPrice(c)
+				getApyRate(c) // 年化收益率
+				getCfilToFil(c) // CfilToFil
+				getCapitalB(c) // 可流通量b
+				getLowcaseB(c) // 锁仓量B
+				getLoss(c) // 损耗值
+				getLockedFilNode(c) // B锁仓量投资FIL节点
+				getDrawnCfil(c) // 已提取CFIL
+				getRewardedFaci(c) // 已奖励Faci
+				getFaciTotal(c) // Faci总发行量
 
 				time.Sleep(time.Second)
 				c.Writer.(http.Flusher).Flush()
@@ -137,17 +180,34 @@ func sseHandler(c *gin.Context) {
 	}
 }
 
+// 年化收益率
+func getApyRate(c *gin.Context) {
+	c.SSEvent("apyrate", gin.H {
+		"success": true,
+		"message": "ok",
+		"data": 800,
+	})
+}
+
+// CfilToFil
+func getCfilToFil(c *gin.Context) {
+	c.SSEvent("cfiltofil", gin.H {
+		"success": true,
+		"message": "ok",
+		"data": 1.2,
+	})
+}
+
+// 可流通量b
 func getCapitalB(c *gin.Context) {
 	c.SSEvent("capitalb", gin.H {
 		"success": true,
 		"message": "ok",
-		"data": gin.H {
-			"locked": 100,
-			"unlocked": 700,
-		},
+		"data": 800,
 	})
 }
 
+// 锁仓量B
 func getLowcaseB(c *gin.Context) {
 	c.SSEvent("lowcaseb", gin.H {
 		"success": true,
@@ -156,32 +216,45 @@ func getLowcaseB(c *gin.Context) {
 	})
 }
 
-func getPutIn(c *gin.Context) {
-	c.SSEvent("totalputin", gin.H {
+// 损耗值
+func getLoss(c *gin.Context) {
+	c.SSEvent("loss", gin.H {
 		"success": true,
 		"message": "ok",
-		"data": 10000,
+		"data": 0.321,
 	})
 }
 
-func getSettled(c *gin.Context) {
-	c.SSEvent("settled", gin.H {
+// B锁仓量投资FIL节点
+func getLockedFilNode(c *gin.Context) {
+	c.SSEvent("lockedfilnode", gin.H {
+		"success": true,
+		"message": "ok",
+		"data": 0.321,
+	})
+}
+
+// 已提取CFIL
+func getDrawnCfil(c *gin.Context) {
+	c.SSEvent("drawncfil", gin.H {
 		"success": true,
 		"message": "ok",
 		"data": 1000,
 	})
 }
 
-func getRewarded(c *gin.Context) {
-	c.SSEvent("rewarded", gin.H {
+// 已奖励Faci
+func getRewardedFaci(c *gin.Context) {
+	c.SSEvent("rewardedfaci", gin.H {
 		"success": true,
 		"message": "ok",
 		"data": 1000,
 	})
 }
 
-func getFilPrice(c *gin.Context) {
-	c.SSEvent("filprice", gin.H {
+// Faci总发行量
+func getFaciTotal(c *gin.Context) {
+	c.SSEvent("facitotal", gin.H {
 		"success": true,
 		"message": "ok",
 		"data": 1000.23,
