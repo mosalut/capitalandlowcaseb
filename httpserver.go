@@ -165,9 +165,10 @@ func sseHandler(c *gin.Context) {
 				getLowcaseB(c) // 锁仓量B
 				getLoss(c) // 损耗值
 				getLockedFilNode(c) // B锁仓量投资FIL节点
-				getDrawnCfil(c) // 已提取CFIL
-				getRewardedFaci(c) // 已奖励Faci
-				getFaciTotal(c) // Faci总发行量
+				getDrawnFil(c) // 累计已提取FIL
+			//	getDrawnCfil(c) // 已提取CFIL
+			//	getRewardedFaci(c) // 已奖励Faci
+			//	getFaciTotal(c) // Faci总发行量
 
 				time.Sleep(time.Second)
 				c.Writer.(http.Flusher).Flush()
@@ -234,6 +235,16 @@ func getLockedFilNode(c *gin.Context) {
 	})
 }
 
+// 累计已提取FIL
+func getDrawnFil(c *gin.Context) {
+	c.SSEvent("drawnfil", gin.H {
+		"success": true,
+		"message": "ok",
+		"data": 1000,
+	})
+}
+
+/*
 // 已提取CFIL
 func getDrawnCfil(c *gin.Context) {
 	c.SSEvent("drawncfil", gin.H {
@@ -260,3 +271,4 @@ func getFaciTotal(c *gin.Context) {
 		"data": 1000.23,
 	})
 }
+*/

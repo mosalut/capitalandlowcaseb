@@ -29,7 +29,7 @@ func validation(account, key, networking string) bool {
 
 			now := time.Now().Unix()
 			fmt.Println(now, t.timestamp)
-			if now - t.timestamp > 900 {
+			if now - t.timestamp > 900 || k != hex.EncodeToString(t.hash[:]) {
 				delete(tokens, key)
 				return false
 			}
