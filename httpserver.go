@@ -34,6 +34,7 @@ func runHTTP() {
 	r.GET("/cirulations", getCirulations)
 	r.GET("/worthdeposits", getWorthDeposits)
 	r.GET("/drawns", getDrawns)
+	r.GET("/signout", signout)
 	r.Run(PORT)
 }
 
@@ -142,6 +143,19 @@ func getDrawns (c *gin.Context) {
 			"success": true,
 			"message": "ok",
 			"data": drawns,
+		})
+	}
+}
+
+func signout (c *gin.Context) {
+	account := c.Query("account")
+	key := c.Query("key")
+	if checkSignInOK(c, account, key) {
+		delete(tokens, key)
+
+		c.JSON(http.StatusOK, gin.H {
+			"success": true,
+			"message": "ok",
 		})
 	}
 }
