@@ -19,6 +19,15 @@ const (
 	WEBPORT = ":10000"
 )
 
+var (
+	cfilToFilCh = make(chan string)
+	capitalBCh = make(chan string)
+	lowcaseBCh = make(chan string)
+	lossCh = make(chan string)
+	drawnFilCh = make(chan string)
+//	apyRateCh = make(chan float64)
+)
+
 type event_T struct {
 	ID      int
 	Message string
@@ -34,7 +43,7 @@ func runHTTP() {
 	r.GET("/cirulations", getCirulations)
 	r.GET("/worthdeposits", getWorthDeposits)
 	r.GET("/drawns", getDrawns)
-	r.GET("/signout", signout)
+	r.GET("/signout", signOut)
 	r.Run(PORT)
 }
 
@@ -147,7 +156,7 @@ func getDrawns (c *gin.Context) {
 	}
 }
 
-func signout (c *gin.Context) {
+func signOut (c *gin.Context) {
 	account := c.Query("account")
 	key := c.Query("key")
 	if checkSignInOK(c, account, key) {
@@ -157,6 +166,8 @@ func signout (c *gin.Context) {
 			"success": true,
 			"message": "ok",
 		})
+
+		c.Request.Body.Close()
 	}
 }
 
@@ -170,91 +181,101 @@ func sseHandler(c *gin.Context) {
 	c.Writer.Header().Set("Cache-Control", "no-cache")
 //	c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
 
+//	go requestApyRate()
+	go requestCfilToFil()
+	go requestCapitalB()
+	go requestLowcaseB()
+	go requestLoss()
+	go requestDrawnFil()
+
 	for _, token := range tokens {
 		if token.networking == c.ClientIP() + WEBPORT {
 			c.Stream(func(w io.Writer) bool {
-				getApyRate(c) // 年化收益率
-				getCfilToFil(c) // CfilToFil
-				getCapitalB(c) // 可流通量b
-				getLowcaseB(c) // 锁仓量B
-				getLoss(c) // 损耗值
-				getLockedFilNode(c) // B锁仓量投资FIL节点
-				getDrawnFil(c) // 累计已提取FIL
+				select {
+					/*
+				case data := <-apyRateCh:
+					getApyRate(c, data) // 年化收益率
+					c.Writer.(http.Flusher).Flush()
+					*/
+				case data := <-cfilToFilCh:
+					getCfilToFil(c, data) // CfilToFil
+				case data := <-capitalBCh:
+					getCapitalB(c, data) // 可流通量b
+				case data := <-lowcaseBCh:
+					getLowcaseB(c, data) // 锁仓量B
+				case data := <-lossCh:
+					getLoss(c, data) // 损耗值
+				case data := <-drawnFilCh:
+					getDrawnFil(c, data) // 累计已提取FIL
+				default:
+					getApyRate(c, "7") // 年化收益率
+					time.Sleep(time.Second)
+				}
+
+			//	getLockedFilNode(c) // B锁仓量投资FIL节点
 			//	getDrawnCfil(c) // 已提取CFIL
 			//	getRewardedFaci(c) // 已奖励Faci
 			//	getFaciTotal(c) // Faci总发行量
 
-				time.Sleep(time.Second)
 				c.Writer.(http.Flusher).Flush()
 
 				return true
 			})
-
-			break
 		}
 	}
 }
 
 // 年化收益率
-func getApyRate(c *gin.Context) {
+func getApyRate(c *gin.Context, data string) {
 	c.SSEvent("apyrate", gin.H {
 		"success": true,
 		"message": "ok",
-		"data": 800,
+		"data": data,
 	})
 }
 
 // CfilToFil
-func getCfilToFil(c *gin.Context) {
+func getCfilToFil(c *gin.Context, data string) {
 	c.SSEvent("cfiltofil", gin.H {
 		"success": true,
 		"message": "ok",
-		"data": 1.2,
+		"data": data,
 	})
 }
 
 // 可流通量b
-func getCapitalB(c *gin.Context) {
+func getCapitalB(c *gin.Context, data string) {
 	c.SSEvent("capitalb", gin.H {
 		"success": true,
 		"message": "ok",
-		"data": 800,
+		"data": data,
 	})
 }
 
 // 锁仓量B
-func getLowcaseB(c *gin.Context) {
+func getLowcaseB(c *gin.Context, data string) {
 	c.SSEvent("lowcaseb", gin.H {
 		"success": true,
 		"message": "ok",
-		"data": 100,
+		"data": data,
 	})
 }
 
 // 损耗值
-func getLoss(c *gin.Context) {
+func getLoss(c *gin.Context, data string) {
 	c.SSEvent("loss", gin.H {
 		"success": true,
 		"message": "ok",
-		"data": 0.321,
-	})
-}
-
-// B锁仓量投资FIL节点
-func getLockedFilNode(c *gin.Context) {
-	c.SSEvent("lockedfilnode", gin.H {
-		"success": true,
-		"message": "ok",
-		"data": 0.321,
+		"data": data,
 	})
 }
 
 // 累计已提取FIL
-func getDrawnFil(c *gin.Context) {
+func getDrawnFil(c *gin.Context, data string) {
 	c.SSEvent("drawnfil", gin.H {
 		"success": true,
 		"message": "ok",
-		"data": 1000,
+		"data": data,
 	})
 }
 
@@ -283,6 +304,15 @@ func getFaciTotal(c *gin.Context) {
 		"success": true,
 		"message": "ok",
 		"data": 1000.23,
+	})
+}
+
+// B锁仓量投资FIL节点
+func getLockedFilNode(c *gin.Context) {
+	c.SSEvent("lockedfilnode", gin.H {
+		"success": true,
+		"message": "ok",
+		"data": 0.321,
 	})
 }
 */
