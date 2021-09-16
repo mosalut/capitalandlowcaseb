@@ -4,6 +4,7 @@ import (
 	"io"
 	"crypto/md5"
 	"encoding/hex"
+//	"encoding/json"
 	"net/http"
 	"time"
 	"fmt"
@@ -19,18 +20,19 @@ const (
 	WEBPORT = ":10000"
 )
 
-var (
-	cfilToFilCh = make(chan string)
-	capitalBCh = make(chan string)
-	lowcaseBCh = make(chan string)
-	lossCh = make(chan string)
-	drawnFilCh = make(chan string)
-//	apyRateCh = make(chan float64)
-)
-
 type event_T struct {
 	ID      int
 	Message string
+}
+
+type conn_T struct {
+	*token_T
+	cfToFCh chan string
+	bCh chan cacheB_T
+	lossCh chan string
+	drawnFilCh chan string
+//	apyRateCh chan string 
+	filNodesCh chan map[string]cacheFilNode_T
 }
 
 func runHTTP() {
@@ -44,6 +46,7 @@ func runHTTP() {
 	r.GET("/worthdeposits", getWorthDeposits)
 	r.GET("/drawns", getDrawns)
 	r.GET("/signout", signOut)
+	r.GET("/", initData)
 	r.Run(PORT)
 }
 
@@ -71,7 +74,16 @@ func signIn(c *gin.Context) {
 
 	key := hex.EncodeToString(token.hash[:])
 
-	tokens[key] = token
+	conn := &conn_T{
+		token,
+		make(chan string),
+		make(chan cacheB_T),
+		make(chan string),
+		make(chan string),
+	//	make(chan string),
+		make(chan map[string]cacheFilNode_T),
+	}
+	conns[key] = conn
 
 	c.Redirect(http.StatusMovedPermanently, "http://47.98.204.151" + WEBPORT + "/signinsuccess.html?key=" + key + "&account=" + accountP)
 }
@@ -95,6 +107,26 @@ func checkSignIn(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H {
 			"success": true,
 			"message": "ok",
+		})
+	}
+}
+
+func initData(c *gin.Context) {
+	account := c.Query("account")
+	key := c.Query("key")
+	if checkSignInOK(c, account, key) {
+		c.JSON(http.StatusOK, gin.H {
+			"success": true,
+			"message": "ok",
+			"data": gin.H {
+				"apyrate": "7",
+				"capitalb": cacheB.CapitalB,
+				"lowcaseb": cacheB.LowcaseB,
+				"cfiltofil": cacheCfToF,
+				"loss": cacheLoss,
+				"drawnfil": cacheDrawnFil,
+				"filNodes": cacheFilNodes,
+			},
 		})
 	}
 }
@@ -160,7 +192,7 @@ func signOut (c *gin.Context) {
 	account := c.Query("account")
 	key := c.Query("key")
 	if checkSignInOK(c, account, key) {
-		delete(tokens, key)
+		disconnect(key)
 
 		c.JSON(http.StatusOK, gin.H {
 			"success": true,
@@ -181,44 +213,26 @@ func sseHandler(c *gin.Context) {
 	c.Writer.Header().Set("Cache-Control", "no-cache")
 //	c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
 
-//	go requestApyRate()
-	go requestCfilToFil()
-	go requestCapitalB()
-	go requestLowcaseB()
-	go requestLoss()
-	go requestDrawnFil()
 
-	for _, token := range tokens {
-		if token.networking == c.ClientIP() + WEBPORT {
+	for _, conn := range conns {
+		if conn.networking == c.ClientIP() + WEBPORT {
 			c.Stream(func(w io.Writer) bool {
 				select {
-					/*
-				case data := <-apyRateCh:
-					getApyRate(c, data) // 年化收益率
-					c.Writer.(http.Flusher).Flush()
-					*/
-				case data := <-cfilToFilCh:
+				case data := <-conn.cfToFCh:
 					getCfilToFil(c, data) // CfilToFil
-				case data := <-capitalBCh:
-					getCapitalB(c, data) // 可流通量b
-				case data := <-lowcaseBCh:
-					getLowcaseB(c, data) // 锁仓量B
-				case data := <-lossCh:
+				case data := <-conn.bCh:
+					getB(c, data) // 可流通量b // 锁仓量B
+				case data := <-conn.lossCh:
 					getLoss(c, data) // 损耗值
-				case data := <-drawnFilCh:
+				case data := <-conn.drawnFilCh:
 					getDrawnFil(c, data) // 累计已提取FIL
+					/*
 				default:
 					getApyRate(c, "7") // 年化收益率
-					time.Sleep(time.Second)
+					*/
 				}
 
-			//	getLockedFilNode(c) // B锁仓量投资FIL节点
-			//	getDrawnCfil(c) // 已提取CFIL
-			//	getRewardedFaci(c) // 已奖励Faci
-			//	getFaciTotal(c) // Faci总发行量
-
 				c.Writer.(http.Flusher).Flush()
-
 				return true
 			})
 		}
@@ -243,18 +257,9 @@ func getCfilToFil(c *gin.Context, data string) {
 	})
 }
 
-// 可流通量b
-func getCapitalB(c *gin.Context, data string) {
-	c.SSEvent("capitalb", gin.H {
-		"success": true,
-		"message": "ok",
-		"data": data,
-	})
-}
-
-// 锁仓量B
-func getLowcaseB(c *gin.Context, data string) {
-	c.SSEvent("lowcaseb", gin.H {
+// 可流通量b 锁仓量B
+func getB(c *gin.Context, data cacheB_T) {
+	c.SSEvent("bb", gin.H {
 		"success": true,
 		"message": "ok",
 		"data": data,
@@ -277,6 +282,9 @@ func getDrawnFil(c *gin.Context, data string) {
 		"message": "ok",
 		"data": data,
 	})
+}
+
+func getFilNodes(c *gin.Context, data []cacheFilNode_T) {
 }
 
 /*
@@ -316,3 +324,15 @@ func getLockedFilNode(c *gin.Context) {
 	})
 }
 */
+
+func disconnect(key string) {
+	conn, ok := conns[key]
+	if ok {
+		close(conn.cfToFCh)
+		close(conn.bCh)
+		close(conn.lossCh)
+		close(conn.drawnFilCh)
+	//	close(conn.apyRateCh)
+		delete(conns, key)
+	}
+}

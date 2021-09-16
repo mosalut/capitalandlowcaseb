@@ -16,29 +16,31 @@ type token_T struct {
 	networking string
 }
 
+var conns map[string]*conn_T
+
 func validation(account, key, networking string) bool {
-	for k, t := range tokens {
+	for k, c := range conns {
 		if k == key {
-			if account != t.account {
+			if account != c.account {
 				return false
 			}
 
-			if networking != t.networking {
+			if networking != c.networking {
 				return false
 			}
 
 			now := time.Now().Unix()
-			fmt.Println(now, t.timestamp)
-			if now - t.timestamp > 900 || k != hex.EncodeToString(t.hash[:]) {
-				delete(tokens, key)
+			fmt.Println(now, c.timestamp)
+			if now - c.timestamp > 900 || k != hex.EncodeToString(c.hash[:]) {
+				disconnect(k)
 				return false
 			}
 
-			data := []byte(t.account)
-			data = append(data, uint64ToBytes(uint64(t.timestamp))...)
+			data := []byte(c.account)
+			data = append(data, uint64ToBytes(uint64(c.timestamp))...)
 			hash := md5.Sum(data)
 
-			if hex.EncodeToString(t.hash[:]) != hex.EncodeToString(hash[:]) {
+			if hex.EncodeToString(c.hash[:]) != hex.EncodeToString(hash[:]) {
 				return false
 			}
 

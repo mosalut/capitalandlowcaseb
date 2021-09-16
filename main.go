@@ -1,19 +1,21 @@
 package main
 
 import (
+	"log"
 )
 
 var account string
 var password string
-var tokens map[string]*token_T
 
 func init() {
+	log.SetFlags(log.Lshortfile | log.LstdFlags)
 	account = "aaaaaa"
 	password = "999999"
 
-	tokens = make(map[string]*token_T)
+	conns = make(map[string]*conn_T)
 }
 
 func main() {
+	go listenRequests()
 	runHTTP()
 }
