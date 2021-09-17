@@ -14,10 +14,10 @@ import (
 )
 
 const (
-//	PORT = ":8888"
-	PORT = ":8887"
-//	WEBPORT = ":80"
-	WEBPORT = ":10000"
+	PORT = ":8888"
+//	PORT = ":8887"
+	WEBPORT = ":80"
+//	WEBPORT = ":10000"
 )
 
 type event_T struct {
