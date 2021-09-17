@@ -232,7 +232,7 @@ func requestFilNodes(wg *sync.WaitGroup) {
 			log.Println(err)
 			return
 		}
-		totalRewards /= 1000
+		totalRewards /= 10000
 
 		cacheFilNode.SingleT = totalRewards / active * 16
 		cacheFilNodes[nodeKey] = cacheFilNode
