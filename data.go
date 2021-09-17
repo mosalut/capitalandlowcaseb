@@ -32,7 +32,7 @@ type cacheB_T struct {
 type cacheFilNode_T struct {
 	Balance string `json:"balance"`
 	Pledge string `json:"pledge"`
-	VestingFunds string `json:"locked"`
+	VestingFunds string `json:"vestingFunds"`
 	SingleT float64 `json:"singlet"`
 }
 
