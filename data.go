@@ -236,6 +236,5 @@ func requestFilNodes(wg *sync.WaitGroup) {
 
 		cacheFilNode.SingleT = totalRewards / active * 64 / 1024
 		cacheFilNodes[nodeKey] = cacheFilNode
-
 	}
 }

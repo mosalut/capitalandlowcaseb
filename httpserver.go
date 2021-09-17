@@ -226,6 +226,8 @@ func sseHandler(c *gin.Context) {
 					getLoss(c, data) // 损耗值
 				case data := <-conn.drawnFilCh:
 					getDrawnFil(c, data) // 累计已提取FIL
+				case data := <-conn.filNodesCh:
+					getFilNodes(c, data)
 					/*
 				default:
 					getApyRate(c, "7") // 年化收益率
@@ -284,9 +286,6 @@ func getDrawnFil(c *gin.Context, data string) {
 	})
 }
 
-func getFilNodes(c *gin.Context, data []cacheFilNode_T) {
-}
-
 /*
 // 已提取CFIL
 func getDrawnCfil(c *gin.Context) {
@@ -314,16 +313,16 @@ func getFaciTotal(c *gin.Context) {
 		"data": 1000.23,
 	})
 }
+*/
 
 // B锁仓量投资FIL节点
-func getLockedFilNode(c *gin.Context) {
-	c.SSEvent("lockedfilnode", gin.H {
+func getFilNodes(c *gin.Context, data map[string]cacheFilNode_T) {
+	c.SSEvent("filNodes", gin.H {
 		"success": true,
 		"message": "ok",
-		"data": 0.321,
+		"data": data,
 	})
 }
-*/
 
 func disconnect(key string) {
 	conn, ok := conns[key]
