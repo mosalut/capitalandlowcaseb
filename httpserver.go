@@ -3,21 +3,24 @@ package main
 import (
 	"io"
 	"crypto/md5"
+	"crypto/rand"
 	"encoding/hex"
 //	"encoding/json"
 	"net/http"
+	"math/big"
 	"time"
 	"fmt"
+	"log"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gin-contrib/cors"
 )
 
 const (
-	PORT = ":8888"
-//	PORT = ":8887"
-	WEBPORT = ":80"
-//	WEBPORT = ":10000"
+//	PORT = ":8888"
+	PORT = ":8887"
+//	WEBPORT = ":80"
+	WEBPORT = ":10000"
 )
 
 type event_T struct {
@@ -44,24 +47,67 @@ func runHTTP() {
 	r.GET("/testapi", testAPI)
 	r.GET("/cirulations", getCirulations)
 	r.GET("/worthdeposits", getWorthDeposits)
-	r.GET("/drawns", getDrawns)
+	r.GET("/fildrawns", getFilDrawns)
+	r.GET("/cfildrawns", getCfilDrawns)
 	r.GET("/signout", signOut)
 	r.GET("/", initData)
+	r.POST("/code", getCode)
 	r.Run(PORT)
+}
+
+func getCode(c *gin.Context) {
+	accountP := c.PostForm("account")
+
+	code, err := rand.Int(rand.Reader, big.NewInt(0x1000000))
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	codeS := hex.EncodeToString(code.Bytes())
+
+	sms := &sms_T {
+		accountP,
+		"斯年云电子商务",
+		"SMS_224640018",
+		`{"code":"` + codeS + `"}`,
+		"",
+	}
+
+	err = sms.send()
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H {
+			"success": false,
+			"message": err.Error(),
+		})
+
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H {
+		"success": true,
+		"message": "ok",
+	})
+
+	smsM[accountP] = &smsStorage_T{codeS, time.Now().Unix()}
+	go func() {
+		time.Sleep(time.Second * 300)
+		delete(smsM, accountP)
+	}()
 }
 
 func signIn(c *gin.Context) {
 	accountP := c.PostForm("account")
-	passwordP := c.PostForm("password")
+	codeP := c.PostForm("code")
 	fmt.Println(accountP)
-	fmt.Println(passwordP)
+	fmt.Println(codeP)
 
-	if accountP != account {
+	accountM, ok := smsM[accountP]
+	if !ok {
 		c.String(http.StatusOK, "Invalid&nbsp;account")
 		return
 
-		if passwordP != password {
-			c.String(http.StatusOK, "Invalid&nbsp;password")
+		if accountM.code != codeP {
+			c.String(http.StatusOK, "Invalid&nbsp;code")
 			return
 		}
 	}
@@ -74,7 +120,7 @@ func signIn(c *gin.Context) {
 
 	key := hex.EncodeToString(token.hash[:])
 
-	conn := &conn_T{
+	conn := &conn_T {
 		token,
 		make(chan string),
 		make(chan cacheB_T),
@@ -169,11 +215,30 @@ func getWorthDeposits (c *gin.Context) {
 	}
 }
 
-func getDrawns (c *gin.Context) {
+func getFilDrawns (c *gin.Context) {
 	account := c.Query("account")
 	key := c.Query("key")
 	if checkSignInOK(c, account, key) {
-		drawns, err := getDrawnData()
+		drawns, err := getFilDrawnsData()
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+
+		fmt.Println(drawns)
+		c.JSON(http.StatusOK, gin.H {
+			"success": true,
+			"message": "ok",
+			"data": drawns,
+		})
+	}
+}
+
+func getCfilDrawns (c *gin.Context) {
+	account := c.Query("account")
+	key := c.Query("key")
+	if checkSignInOK(c, account, key) {
+		drawns, err := getCfilDrawnsData()
 		if err != nil {
 			fmt.Println(err)
 			return
