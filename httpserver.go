@@ -38,6 +38,15 @@ type conn_T struct {
 	filNodesCh chan map[string]cacheFilNode_T
 }
 
+type gettingCode_T byte
+
+func (gC *gettingCode_T) wait(ip string) {
+	time.Sleep(time.Second * 55)
+	delete(gettingCodes, ip)
+}
+
+var gettingCodes = make(map[string]*gettingCode_T)
+
 func runHTTP() {
 	r := gin.Default()
 	r.Use(cors.Default())
@@ -56,6 +65,12 @@ func runHTTP() {
 }
 
 func getCode(c *gin.Context) {
+	_, ok := gettingCodes[c.ClientIP()]
+	if ok {
+		fmt.Println("code waiting")
+		return
+	}
+
 	accountP := c.PostForm("account")
 
 	code, err := rand.Int(rand.Reader, big.NewInt(0x1000000))
@@ -93,6 +108,9 @@ func getCode(c *gin.Context) {
 		time.Sleep(time.Second * 300)
 		delete(smsM, accountP)
 	}()
+
+	gettingCodes[c.ClientIP()] = nil
+	go gettingCodes[c.ClientIP()].wait(c.ClientIP())
 }
 
 func signIn(c *gin.Context) {
