@@ -30,6 +30,8 @@ type cacheB_T struct {
 }
 
 type cacheFilNode_T struct {
+	Address string `json:"address"`
+	QualityAdjPower float64 `json:"qualityadjpower"`
 	Balance string `json:"balance"`
 	Pledge string `json:"pledge"`
 	VestingFunds string `json:"vestingFunds"`
@@ -236,6 +238,7 @@ func requestFilNodes(wg *sync.WaitGroup) {
 		}
 
 		cacheFilNode := cacheFilNode_T{}
+		cacheFilNode.Address = data["miner"].(map[string]interface{})["owner"].(map[string]interface{})["address"].(string)
 		cacheFilNode.Balance = data["miner"].(map[string]interface{})["availableBalance"].(string)
 		cacheFilNode.Pledge = data["miner"].(map[string]interface{})["sectorPledgeBalance"].(string)
 		cacheFilNode.VestingFunds = data["miner"].(map[string]interface{})["vestingFunds"].(string)
@@ -262,6 +265,14 @@ func requestFilNodes(wg *sync.WaitGroup) {
 			return
 		}
 		totalRewards /= 10000
+
+		qualityAdjPower := data["miner"].(map[string]interface{})["qualityAdjPower"].(string)
+		cacheFilNode.QualityAdjPower, err = strconv.ParseFloat(qualityAdjPower, 64)
+		if err != nil {
+			log.Println(err)
+			return
+		}
+		cacheFilNode.QualityAdjPower /= 1125899906842624
 
 		cacheFilNode.SingleT = totalRewards / active * 16
 		cacheFilNodes[nodeKey] = cacheFilNode
