@@ -120,14 +120,15 @@ func signIn(c *gin.Context) {
 	fmt.Println(codeP)
 
 	accountM, ok := smsM[accountP]
+	fmt.Println(accountM.code, codeP)
 	if !ok {
-		c.String(http.StatusOK, "Invalid&nbsp;account")
+		c.String(http.StatusOK, "Invalid account")
 		return
+	}
 
-		if accountM.code != codeP {
-			c.String(http.StatusOK, "Invalid&nbsp;code")
-			return
-		}
+	if accountM.code != codeP {
+		c.String(http.StatusOK, "Invalid code")
+		return
 	}
 
 	token := &token_T {account: accountP, timestamp: time.Now().Unix(), networking: c.ClientIP() + WEBPORT}
