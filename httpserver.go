@@ -51,6 +51,7 @@ func runHTTP() {
 	r.POST("/signin", signIn)
 	r.POST("/checksignin", checkSignIn)
 	r.GET("/sse", sseHandler)
+	r.GET("/sse2", sseHandler2)
 	r.GET("/testapi", testAPI)
 	r.GET("/cirulations", getCirulations)
 	r.GET("/worthdeposits", getWorthDeposits)
@@ -195,9 +196,9 @@ func initData(c *gin.Context) {
 }
 
 func getCirulations (c *gin.Context) {
-	account := c.Query("account")
-	key := c.Query("key")
-	if checkSignInOK(c, account, key) {
+//	account := c.Query("account")
+//	key := c.Query("key")
+//	if checkSignInOK(c, account, key) {
 		cirulations, err := getCirulationData()
 		if err != nil {
 			fmt.Println(err)
@@ -210,13 +211,13 @@ func getCirulations (c *gin.Context) {
 			"message": "ok",
 			"data": cirulations,
 		})
-	}
+//	}
 }
 
 func getWorthDeposits (c *gin.Context) {
-	account := c.Query("account")
-	key := c.Query("key")
-	if checkSignInOK(c, account, key) {
+//	account := c.Query("account")
+//	key := c.Query("key")
+//	if checkSignInOK(c, account, key) {
 		worthDeposits, err := getWorthDepositData()
 		if err != nil {
 			fmt.Println(err)
@@ -229,7 +230,7 @@ func getWorthDeposits (c *gin.Context) {
 			"message": "ok",
 			"data": worthDeposits,
 		})
-	}
+//	}
 }
 
 func getFilDrawns (c *gin.Context) {
@@ -295,7 +296,6 @@ func sseHandler(c *gin.Context) {
 	c.Writer.Header().Set("Cache-Control", "no-cache")
 //	c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
 
-
 	for _, conn := range conns {
 		if conn.networking == c.ClientIP() + WEBPORT {
 			c.Stream(func(w io.Writer) bool {
@@ -317,6 +317,31 @@ func sseHandler(c *gin.Context) {
 			})
 		}
 	}
+}
+
+func sseHandler2(c *gin.Context) {
+	c.Writer.Header().Set("Content-Type", "text/event-stream")
+	c.Writer.Header().Set("Connection", "keep-alive")
+	c.Writer.Header().Set("Cache-Control", "no-cache")
+//	c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+
+	c.Stream(func(w io.Writer) bool {
+		select {
+		case data := <-conn.cfToFCh:
+			getCfilToFil(c, data) // CfilToFil
+		case data := <-conn.lowcaseBCh:
+			getLowcaseB(c, data) // 可流通量b
+		case data := <-conn.lossCh:
+			getLoss(c, data) // 损耗值
+		case data := <-conn.drawnFilCh:
+			getDrawnFil(c, data) // 累计已提取FIL
+		case data := <-conn.filNodesCh:
+			getFilNodes(c, data)
+		}
+
+		c.Writer.(http.Flusher).Flush()
+		return true
+	})
 }
 
 // 年化收益率
