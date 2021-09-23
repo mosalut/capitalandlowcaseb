@@ -27,6 +27,10 @@ type event_T struct {
 	Message string
 }
 
+type connection_T interface {
+	disconnect(key string)
+}
+
 type conn_T struct {
 	*token_T
 	cfToFCh chan string
@@ -34,7 +38,53 @@ type conn_T struct {
 	lossCh chan string
 	drawnFilCh chan string
 	filNodesCh chan map[string]cacheFilNode_T
+
+	cirulationCh chan []float64
+	worthDepositCh chan []float64
+	filDrawnsCh chan []float64
+	cfilDrawnsCh chan []float64
+
+	pingCh chan byte
 }
+
+func (conn *conn_T)disconnect(key string) {
+	conn, ok := conns[key]
+	if ok {
+		close(conn.cfToFCh)
+		close(conn.lowcaseBCh)
+		close(conn.lossCh)
+		close(conn.drawnFilCh)
+		close(conn.filNodesCh)
+
+		close(conn.cirulationCh)
+		close(conn.worthDepositCh)
+		close(conn.filDrawnsCh)
+		close(conn.cfilDrawnsCh)
+
+		close(conn.pingCh)
+		delete(conns, key)
+	}
+}
+
+type conn2_T struct {
+	cirulationCh chan []float64
+	worthDepositCh chan []float64
+
+	pingCh chan byte
+}
+
+func (conn *conn2_T)disconnect(key string) {
+	conn, ok := conns2[key]
+	if ok {
+		close(conn.cirulationCh)
+		close(conn.worthDepositCh)
+
+		close(conn.pingCh)
+		delete(conns, key)
+	}
+}
+
+var conns2 map[string]*conn2_T
 
 type gettingCode_T byte
 
@@ -51,6 +101,7 @@ func runHTTP() {
 	r.POST("/signin", signIn)
 	r.POST("/checksignin", checkSignIn)
 	r.GET("/sse", sseHandler)
+	r.GET("/sse2", sseHandler2)
 	r.GET("/testapi", testAPI)
 	r.GET("/cirulations", getCirulations)
 	r.GET("/worthdeposits", getWorthDeposits)
@@ -146,6 +197,11 @@ func signIn(c *gin.Context) {
 		make(chan string),
 		make(chan string),
 		make(chan map[string]cacheFilNode_T),
+		make(chan []float64),
+		make(chan []float64),
+		make(chan []float64),
+		make(chan []float64),
+		make(chan byte),
 	}
 	conns[key] = conn
 
@@ -195,9 +251,9 @@ func initData(c *gin.Context) {
 }
 
 func getCirulations (c *gin.Context) {
-	account := c.Query("account")
-	key := c.Query("key")
-	if checkSignInOK(c, account, key) {
+//	account := c.Query("account")
+//	key := c.Query("key")
+//	if checkSignInOK(c, account, key) {
 		cirulations, err := getCirulationData()
 		if err != nil {
 			fmt.Println(err)
@@ -210,13 +266,13 @@ func getCirulations (c *gin.Context) {
 			"message": "ok",
 			"data": cirulations,
 		})
-	}
+//	}
 }
 
 func getWorthDeposits (c *gin.Context) {
-	account := c.Query("account")
-	key := c.Query("key")
-	if checkSignInOK(c, account, key) {
+//	account := c.Query("account")
+//	key := c.Query("key")
+//	if checkSignInOK(c, account, key) {
 		worthDeposits, err := getWorthDepositData()
 		if err != nil {
 			fmt.Println(err)
@@ -229,7 +285,7 @@ func getWorthDeposits (c *gin.Context) {
 			"message": "ok",
 			"data": worthDeposits,
 		})
-	}
+//	}
 }
 
 func getFilDrawns (c *gin.Context) {
@@ -274,7 +330,7 @@ func signOut (c *gin.Context) {
 	account := c.Query("account")
 	key := c.Query("key")
 	if checkSignInOK(c, account, key) {
-		disconnect(key)
+		conns[key].disconnect(key)
 
 		c.JSON(http.StatusOK, gin.H {
 			"success": true,
@@ -298,18 +354,29 @@ func sseHandler(c *gin.Context) {
 
 	for _, conn := range conns {
 		if conn.networking == c.ClientIP() + WEBPORT {
+			go ping(conn)
 			c.Stream(func(w io.Writer) bool {
 				select {
 				case data := <-conn.cfToFCh:
-					getCfilToFil(c, data) // CfilToFil
+					pushCfilToFil(c, data) // CfilToFil
 				case data := <-conn.lowcaseBCh:
-					getLowcaseB(c, data) // 可流通量b
+					pushLowcaseB(c, data) // 可流通量b
 				case data := <-conn.lossCh:
-					getLoss(c, data) // 损耗值
+					pushLoss(c, data) // 损耗值
 				case data := <-conn.drawnFilCh:
-					getDrawnFil(c, data) // 累计已提取FIL
+					pushDrawnFil(c, data) // 累计已提取FIL
 				case data := <-conn.filNodesCh:
-					getFilNodes(c, data)
+					pushFilNodes(c, data)
+				case data := <-conn.cirulationCh:
+					pushCirulations(c, data)
+				case data := <-conn.worthDepositCh:
+					pushWorthDeposits(c, data)
+				case data := <-conn.filDrawnsCh:
+					pushFilDrawns(c, data)
+				case data := <-conn.cfilDrawnsCh:
+					pushCfilDrawns(c, data)
+				case <-conn.pingCh:
+					pong(c)
 				}
 
 				c.Writer.(http.Flusher).Flush()
@@ -319,8 +386,43 @@ func sseHandler(c *gin.Context) {
 	}
 }
 
+func sseHandler2(c *gin.Context) {
+	c.Writer.Header().Set("Content-Type", "text/event-stream")
+	c.Writer.Header().Set("Connection", "keep-alive")
+	c.Writer.Header().Set("Cache-Control", "no-cache")
+//	c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+
+	key := c.ClientIP()
+	conn, ok := conns2[key]
+	if ok {
+		conn.disconnect(key)
+	}
+
+	conn = &conn2_T {
+		make(chan []float64),
+		make(chan []float64),
+		make(chan byte),
+	}
+	conns2[key] = conn
+
+	go ping(conn)
+	c.Stream(func(w io.Writer) bool {
+		select {
+		case data := <-conn.cirulationCh:
+			pushCirulations(c, data) // CfilToFil
+		case data := <-conn.worthDepositCh:
+			pushWorthDeposits(c, data) // 可流通量b
+		case <-conn.pingCh:
+			pong(c)
+		}
+
+		c.Writer.(http.Flusher).Flush()
+		return true
+	})
+}
+
 // 年化收益率
-func getApyRate(c *gin.Context, data string) {
+func pushApyRate(c *gin.Context, data string) {
 	c.SSEvent("apyrate", gin.H {
 		"success": true,
 		"message": "ok",
@@ -329,7 +431,7 @@ func getApyRate(c *gin.Context, data string) {
 }
 
 // CfilToFil
-func getCfilToFil(c *gin.Context, data string) {
+func pushCfilToFil(c *gin.Context, data string) {
 	c.SSEvent("cfiltofil", gin.H {
 		"success": true,
 		"message": "ok",
@@ -338,7 +440,7 @@ func getCfilToFil(c *gin.Context, data string) {
 }
 
 // 可流通量b
-func getLowcaseB(c *gin.Context, data string) {
+func pushLowcaseB(c *gin.Context, data string) {
 	c.SSEvent("lowcaseb", gin.H {
 		"success": true,
 		"message": "ok",
@@ -347,7 +449,7 @@ func getLowcaseB(c *gin.Context, data string) {
 }
 
 // 损耗值
-func getLoss(c *gin.Context, data string) {
+func pushLoss(c *gin.Context, data string) {
 	c.SSEvent("loss", gin.H {
 		"success": true,
 		"message": "ok",
@@ -356,7 +458,7 @@ func getLoss(c *gin.Context, data string) {
 }
 
 // 累计已提取FIL
-func getDrawnFil(c *gin.Context, data string) {
+func pushDrawnFil(c *gin.Context, data string) {
 	c.SSEvent("drawnfil", gin.H {
 		"success": true,
 		"message": "ok",
@@ -365,7 +467,7 @@ func getDrawnFil(c *gin.Context, data string) {
 }
 
 // B锁仓量投资FIL节点
-func getFilNodes(c *gin.Context, data map[string]cacheFilNode_T) {
+func pushFilNodes(c *gin.Context, data map[string]cacheFilNode_T) {
 	c.SSEvent("filNodes", gin.H {
 		"success": true,
 		"message": "ok",
@@ -373,13 +475,54 @@ func getFilNodes(c *gin.Context, data map[string]cacheFilNode_T) {
 	})
 }
 
-func disconnect(key string) {
-	conn, ok := conns[key]
-	if ok {
-		close(conn.cfToFCh)
-		close(conn.lowcaseBCh)
-		close(conn.lossCh)
-		close(conn.drawnFilCh)
-		delete(conns, key)
+func pushCirulations(c *gin.Context, data []float64) {
+	c.SSEvent("cirulations", gin.H {
+		"success": true,
+		"message": "ok",
+		"data": data,
+	})
+}
+
+func pushWorthDeposits(c *gin.Context, data []float64) {
+	c.SSEvent("worthdeposits", gin.H {
+		"success": true,
+		"message": "ok",
+		"data": data,
+	})
+}
+
+func pushFilDrawns(c *gin.Context, data []float64) {
+	c.SSEvent("fildrawns", gin.H {
+		"success": true,
+		"message": "ok",
+		"data": data,
+	})
+}
+
+func pushCfilDrawns(c *gin.Context, data []float64) {
+	c.SSEvent("cfildrawns", gin.H {
+		"success": true,
+		"message": "ok",
+		"data": data,
+	})
+}
+
+func ping(c connection_T) {
+	for {
+		switch c.(type) {
+		case *conn_T:
+			c.(*conn_T).pingCh <- byte(0)
+		case *conn2_T:
+			c.(*conn2_T).pingCh <- byte(0)
+		}
+		modTime := time.Now().Unix() % 10
+		time.Sleep(time.Second * time.Duration(TIME_CFILTOFIL - modTime))
 	}
+}
+
+func pong(c *gin.Context) {
+	c.SSEvent("pong", gin.H {
+		"success": true,
+		"message": "ok",
+	})
 }
