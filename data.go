@@ -17,38 +17,41 @@ const (
 
 	BSC_API_URL = "https://api.bscscan.com/api"
 	BSC_API_KEY = "4C2328SSW63VFIWQZMYWD2NZERUUGN3VT1"
-	BSC_WALLET_CAPITAL = "0x8A19846c7e057DBE6D77419BF1c864DAd0065d45"
+//	BSC_WALLET_CAPITAL = "0x8A19846c7e057DBE6D77419BF1c864DAd0065d45"
 	BSC_WALLET_LOWCASE = "0xFF6C223b9Dc11F247B16CED5e8a996DC4deA793E"
 
 	PAGE_URL = "https://filfox.info/api/v1/address/"
 	PAGE_URL_SUB_MINING = "/mining-stats?duration=24h"
 )
 
+/*
 type cacheB_T struct {
 	CapitalB string `json:"capitalb"`
 	LowcaseB string `json:"lowcaseb"`
 }
+*/
 
 type cacheFilNode_T struct {
 	Address string `json:"address"`
-	QualityAdjPower float64 `json:"qualityadjpower"`
 	Balance string `json:"balance"`
+	QualityAdjPower float64 `json:"qualityadjpower"`
+	AvailableBalance string `json:"availableBalance"`
 	Pledge string `json:"pledge"`
 	VestingFunds string `json:"vestingFunds"`
 	SingleT float64 `json:"singlet"`
 }
 
-var cacheB cacheB_T
+// var cacheB cacheB_T
 var cacheCfToF string
 var cacheLoss string
 var cacheDrawnFil string
 var cacheFilNodes = make(map[string]cacheFilNode_T)
+var cacheLowcaseB string
 
 func listenRequests() {
 	for {
 		wg := &sync.WaitGroup{}
 		wg.Add(5)
-	//	go requestApyRate()
 		go requestCfilToFil(wg)
 		go requestB(wg)
 		go requestLoss(wg)
@@ -58,10 +61,9 @@ func listenRequests() {
 
 		for _, c := range conns {
 			c.cfToFCh <-cacheCfToF
-			c.bCh <-cacheB
+			c.lowcaseBCh <-cacheLowcaseB
 			c.lossCh <-cacheLoss
 			c.drawnFilCh <-cacheDrawnFil
-		//	c.apyRateCh <-cacheApyRate
 			c.filNodesCh <-cacheFilNodes
 		}
 		time.Sleep(time.Second * TIME_CFILTOFIL)
@@ -155,28 +157,6 @@ func getFilDrawnsData() ([]float64, error) {
 
 // 24小时CFIL提现
 func getCfilDrawnsData() ([]float64, error) {
-	/*
-	for i, _ := range balances {
-		max := big.NewInt(65536)
-		integerI, err := rand.Int(rand.Reader, max)
-		if err != nil {
-			return nil, err
-		}
-		decimalI, err := rand.Int(rand.Reader, max)
-		if err != nil {
-			return nil, err
-		}
-
-		integerF := big.NewFloat(0)
-		integerF.SetInt(integerI)
-		decimalF := big.NewFloat(0)
-		decimalF.SetInt(decimalI)
-
-		integer, _ := integerF.Float64()
-		decimal, _ := decimalF.Float64()
-		balances[i] = integer + decimal / 100000
-	}
-	*/
 	balances := fibonache()
 
 	return balances, nil
@@ -189,7 +169,8 @@ func requestCfilToFil(wg *sync.WaitGroup) {
 
 func requestB(wg *sync.WaitGroup) {
 	defer wg.Done()
-	resp, err := http.Get(BSC_API_URL + "?module=account&action=balancemulti&address=" + BSC_WALLET_CAPITAL + "," + BSC_WALLET_LOWCASE + "&apikey=" + BSC_API_KEY)
+//	resp, err := http.Get(BSC_API_URL + "?module=account&action=balancemulti&address=" + BSC_WALLET_CAPITAL + "," + BSC_WALLET_LOWCASE + "&apikey=" + BSC_API_KEY)
+	resp, err := http.Get(BSC_API_URL + "?module=account&action=balance&address=" + BSC_WALLET_LOWCASE + "&apikey=" + BSC_API_KEY)
 	if err != nil {
 		log.Println(err)
 		return
@@ -202,11 +183,11 @@ func requestB(wg *sync.WaitGroup) {
 		return
 	}
 
-	capitalB := data["result"].([]interface{})[0].(map[string]interface{})["balance"].(string)
-	lowcaseB := data["result"].([]interface{})[1].(map[string]interface{})["balance"].(string)
+//	capitalB := data["result"].([]interface{})[0].(map[string]interface{})["balance"].(string)
+	cacheLowcaseB = data["result"].(string)
 
-	cacheB.CapitalB = capitalB
-	cacheB.LowcaseB = lowcaseB
+//	cacheB.CapitalB = capitalB
+//	cacheB.LowcaseB = LowcaseB
 }
 
 func requestLoss(wg *sync.WaitGroup) {
@@ -239,7 +220,8 @@ func requestFilNodes(wg *sync.WaitGroup) {
 
 		cacheFilNode := cacheFilNode_T{}
 		cacheFilNode.Address = data["miner"].(map[string]interface{})["owner"].(map[string]interface{})["address"].(string)
-		cacheFilNode.Balance = data["miner"].(map[string]interface{})["availableBalance"].(string)
+		cacheFilNode.Balance = data["balance"].(string)
+		cacheFilNode.AvailableBalance = data["miner"].(map[string]interface{})["availableBalance"].(string)
 		cacheFilNode.Pledge = data["miner"].(map[string]interface{})["sectorPledgeBalance"].(string)
 		cacheFilNode.VestingFunds = data["miner"].(map[string]interface{})["vestingFunds"].(string)
 

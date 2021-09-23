@@ -5,7 +5,6 @@ import (
 	"crypto/md5"
 	"crypto/rand"
 	"encoding/hex"
-//	"encoding/json"
 	"net/http"
 	"math/big"
 	"time"
@@ -31,10 +30,9 @@ type event_T struct {
 type conn_T struct {
 	*token_T
 	cfToFCh chan string
-	bCh chan cacheB_T
+	lowcaseBCh chan string
 	lossCh chan string
 	drawnFilCh chan string
-//	apyRateCh chan string 
 	filNodesCh chan map[string]cacheFilNode_T
 }
 
@@ -65,6 +63,7 @@ func runHTTP() {
 }
 
 func getCode(c *gin.Context) {
+	return
 	_, ok := gettingCodes[c.ClientIP()]
 	if ok {
 		fmt.Println("code waiting")
@@ -119,16 +118,18 @@ func signIn(c *gin.Context) {
 	fmt.Println(accountP)
 	fmt.Println(codeP)
 
+	/*
 	accountM, ok := smsM[accountP]
 	if !ok {
-		c.String(http.StatusOK, "Invalid&nbsp;account")
+		c.String(http.StatusOK, "Invalid account")
 		return
-
-		if accountM.code != codeP {
-			c.String(http.StatusOK, "Invalid&nbsp;code")
-			return
-		}
 	}
+
+	if accountM.code != codeP {
+		c.String(http.StatusOK, "Invalid code")
+		return
+	}
+	*/
 
 	token := &token_T {account: accountP, timestamp: time.Now().Unix(), networking: c.ClientIP() + WEBPORT}
 
@@ -141,10 +142,9 @@ func signIn(c *gin.Context) {
 	conn := &conn_T {
 		token,
 		make(chan string),
-		make(chan cacheB_T),
 		make(chan string),
 		make(chan string),
-	//	make(chan string),
+		make(chan string),
 		make(chan map[string]cacheFilNode_T),
 	}
 	conns[key] = conn
@@ -184,8 +184,7 @@ func initData(c *gin.Context) {
 			"message": "ok",
 			"data": gin.H {
 				"apyrate": "7",
-				"capitalb": cacheB.CapitalB,
-				"lowcaseb": cacheB.LowcaseB,
+				"lowcaseb": cacheLowcaseB,
 				"cfiltofil": cacheCfToF,
 				"loss": cacheLoss,
 				"drawnfil": cacheDrawnFil,
@@ -303,18 +302,14 @@ func sseHandler(c *gin.Context) {
 				select {
 				case data := <-conn.cfToFCh:
 					getCfilToFil(c, data) // CfilToFil
-				case data := <-conn.bCh:
-					getB(c, data) // 可流通量b // 锁仓量B
+				case data := <-conn.lowcaseBCh:
+					getLowcaseB(c, data) // 可流通量b
 				case data := <-conn.lossCh:
 					getLoss(c, data) // 损耗值
 				case data := <-conn.drawnFilCh:
 					getDrawnFil(c, data) // 累计已提取FIL
 				case data := <-conn.filNodesCh:
 					getFilNodes(c, data)
-					/*
-				default:
-					getApyRate(c, "7") // 年化收益率
-					*/
 				}
 
 				c.Writer.(http.Flusher).Flush()
@@ -342,9 +337,9 @@ func getCfilToFil(c *gin.Context, data string) {
 	})
 }
 
-// 可流通量b 锁仓量B
-func getB(c *gin.Context, data cacheB_T) {
-	c.SSEvent("bb", gin.H {
+// 可流通量b
+func getLowcaseB(c *gin.Context, data string) {
+	c.SSEvent("lowcaseb", gin.H {
 		"success": true,
 		"message": "ok",
 		"data": data,
@@ -369,35 +364,6 @@ func getDrawnFil(c *gin.Context, data string) {
 	})
 }
 
-/*
-// 已提取CFIL
-func getDrawnCfil(c *gin.Context) {
-	c.SSEvent("drawncfil", gin.H {
-		"success": true,
-		"message": "ok",
-		"data": 1000,
-	})
-}
-
-// 已奖励Faci
-func getRewardedFaci(c *gin.Context) {
-	c.SSEvent("rewardedfaci", gin.H {
-		"success": true,
-		"message": "ok",
-		"data": 1000,
-	})
-}
-
-// Faci总发行量
-func getFaciTotal(c *gin.Context) {
-	c.SSEvent("facitotal", gin.H {
-		"success": true,
-		"message": "ok",
-		"data": 1000.23,
-	})
-}
-*/
-
 // B锁仓量投资FIL节点
 func getFilNodes(c *gin.Context, data map[string]cacheFilNode_T) {
 	c.SSEvent("filNodes", gin.H {
@@ -411,10 +377,9 @@ func disconnect(key string) {
 	conn, ok := conns[key]
 	if ok {
 		close(conn.cfToFCh)
-		close(conn.bCh)
+		close(conn.lowcaseBCh)
 		close(conn.lossCh)
 		close(conn.drawnFilCh)
-	//	close(conn.apyRateCh)
 		delete(conns, key)
 	}
 }
