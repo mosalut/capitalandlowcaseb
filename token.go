@@ -32,7 +32,7 @@ func validation(account, key, networking string) bool {
 			now := time.Now().Unix()
 			fmt.Println(now, c.timestamp)
 			if now - c.timestamp > 900 || k != hex.EncodeToString(c.hash[:]) {
-				disconnect(k)
+				c.disconnect(k)
 				return false
 			}
 

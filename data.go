@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	TIME_CFILTOFIL = 60
+	TIME_CFILTOFIL = 10
 
 	BSC_API_URL = "https://api.bscscan.com/api"
 	BSC_API_KEY = "4C2328SSW63VFIWQZMYWD2NZERUUGN3VT1"
@@ -60,13 +60,57 @@ func listenRequests() {
 		wg.Wait()
 
 		for _, c := range conns {
-			c.cfToFCh <-cacheCfToF
-			c.lowcaseBCh <-cacheLowcaseB
-			c.lossCh <-cacheLoss
-			c.drawnFilCh <-cacheDrawnFil
-			c.filNodesCh <-cacheFilNodes
+			go func() {
+				c.cfToFCh <- cacheCfToF
+				c.lowcaseBCh <- cacheLowcaseB
+				c.lossCh <- cacheLoss
+				c.drawnFilCh <- cacheDrawnFil
+				c.filNodesCh <- cacheFilNodes
+
+				cirulations, err := getCirulationData()
+				if err != nil {
+					log.Println(err)
+				}
+				c.cirulationCh <- cirulations
+
+				worthDeposits, err := getWorthDepositData()
+				if err != nil {
+					log.Println(err)
+				}
+				c.worthDepositCh <- worthDeposits
+
+				filDrawns, err := getFilDrawnsData()
+				if err != nil {
+					log.Println(err)
+				}
+				c.filDrawnsCh <- filDrawns
+
+				cfilDrawns, err := getCfilDrawnsData()
+				if err != nil {
+					log.Println(err)
+				}
+				c.cfilDrawnsCh <- cfilDrawns
+			}()
 		}
-		time.Sleep(time.Second * TIME_CFILTOFIL)
+
+		for _, c := range conns2 {
+			go func() {
+				cirulations, err := getCirulationData()
+				if err != nil {
+					log.Println(err)
+				}
+				c.cirulationCh <- cirulations
+
+				worthDeposits, err := getWorthDepositData()
+				if err != nil {
+					log.Println(err)
+				}
+				c.worthDepositCh <- worthDeposits
+			}()
+		}
+
+		modTime := time.Now().Unix() % 10
+		time.Sleep(time.Second * time.Duration(TIME_CFILTOFIL - modTime))
 	}
 
 }
