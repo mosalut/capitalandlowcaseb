@@ -27,7 +27,7 @@ type event_T struct {
 	Message string
 }
 
-type connection_T interface {
+type connection_I interface {
 	disconnect(key string)
 }
 
@@ -48,7 +48,7 @@ type conn_T struct {
 }
 
 func (conn *conn_T)disconnect(key string) {
-	conn, ok := conns[key]
+	_, ok := conns[key]
 	if ok {
 		close(conn.cfToFCh)
 		close(conn.lowcaseBCh)
@@ -74,7 +74,7 @@ type conn2_T struct {
 }
 
 func (conn *conn2_T)disconnect(key string) {
-	conn, ok := conns2[key]
+	_, ok := conns2[key]
 	if ok {
 		close(conn.cirulationCh)
 		close(conn.worthDepositCh)
@@ -84,7 +84,7 @@ func (conn *conn2_T)disconnect(key string) {
 	}
 }
 
-var conns2 map[string]*conn2_T
+var conns2 map[string]connection_I
 
 type gettingCode_T byte
 
@@ -352,9 +352,9 @@ func sseHandler(c *gin.Context) {
 //	c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
 
 
-	for _, conn := range conns {
+	for _, cc := range conns {
+		conn := cc.(*conn_T)
 		if conn.networking == c.ClientIP() + WEBPORT {
-			go ping(conn)
 			c.Stream(func(w io.Writer) bool {
 				select {
 				case data := <-conn.cfToFCh:
@@ -393,19 +393,18 @@ func sseHandler2(c *gin.Context) {
 //	c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
 
 	key := c.ClientIP()
-	conn, ok := conns2[key]
+	cc, ok := conns2[key]
 	if ok {
-		conn.disconnect(key)
+		cc.disconnect(key)
 	}
 
-	conn = &conn2_T {
+	conn := &conn2_T {
 		make(chan []float64),
 		make(chan []float64),
 		make(chan byte),
 	}
 	conns2[key] = conn
 
-	go ping(conn)
 	c.Stream(func(w io.Writer) bool {
 		select {
 		case data := <-conn.cirulationCh:
@@ -507,7 +506,13 @@ func pushCfilDrawns(c *gin.Context, data []float64) {
 	})
 }
 
-func ping(c connection_T) {
+func startPing(conns map[string]connection_I) {
+	for _, c := range conns {
+		go ping(c)
+	}
+}
+
+func ping(c connection_I) {
 	for {
 		switch c.(type) {
 		case *conn_T:

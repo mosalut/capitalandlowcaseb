@@ -12,11 +12,13 @@ func init() {
 	account = "aaaaaa"
 	password = "999999"
 
-	conns = make(map[string]*conn_T)
-	conns2 = make(map[string]*conn2_T)
+	conns = make(map[string]connection_I)
+	conns2 = make(map[string]connection_I)
 }
 
 func main() {
 	go listenRequests()
+	go startPing(conns)
+	go startPing(conns2)
 	runHTTP()
 }

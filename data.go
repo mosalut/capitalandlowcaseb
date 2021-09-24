@@ -8,7 +8,7 @@ import (
 	"encoding/json"
 	"strconv"
 	"time"
-//	"fmt"
+	"fmt"
 	"log"
 )
 
@@ -39,6 +39,7 @@ type cacheFilNode_T struct {
 	Pledge string `json:"pledge"`
 	VestingFunds string `json:"vestingFunds"`
 	SingleT float64 `json:"singlet"`
+	WorkerBalance float64 `json:"workerbalance"`
 }
 
 // var cacheB cacheB_T
@@ -60,52 +61,54 @@ func listenRequests() {
 		wg.Wait()
 
 		for _, c := range conns {
+			cc := c.(*conn_T)
 			go func() {
-				c.cfToFCh <- cacheCfToF
-				c.lowcaseBCh <- cacheLowcaseB
-				c.lossCh <- cacheLoss
-				c.drawnFilCh <- cacheDrawnFil
-				c.filNodesCh <- cacheFilNodes
+				cc.cfToFCh <- cacheCfToF
+				cc.lowcaseBCh <- cacheLowcaseB
+				cc.lossCh <- cacheLoss
+				cc.drawnFilCh <- cacheDrawnFil
+				cc.filNodesCh <- cacheFilNodes
 
 				cirulations, err := getCirulationData()
 				if err != nil {
 					log.Println(err)
 				}
-				c.cirulationCh <- cirulations
+				cc.cirulationCh <- cirulations
 
 				worthDeposits, err := getWorthDepositData()
 				if err != nil {
 					log.Println(err)
 				}
-				c.worthDepositCh <- worthDeposits
+				cc.worthDepositCh <- worthDeposits
 
 				filDrawns, err := getFilDrawnsData()
 				if err != nil {
 					log.Println(err)
 				}
-				c.filDrawnsCh <- filDrawns
+				cc.filDrawnsCh <- filDrawns
 
 				cfilDrawns, err := getCfilDrawnsData()
 				if err != nil {
 					log.Println(err)
 				}
-				c.cfilDrawnsCh <- cfilDrawns
+				cc.cfilDrawnsCh <- cfilDrawns
 			}()
 		}
 
 		for _, c := range conns2 {
+			cc := c.(*conn2_T)
 			go func() {
 				cirulations, err := getCirulationData()
 				if err != nil {
 					log.Println(err)
 				}
-				c.cirulationCh <- cirulations
+				cc.cirulationCh <- cirulations
 
 				worthDeposits, err := getWorthDepositData()
 				if err != nil {
 					log.Println(err)
 				}
-				c.worthDepositCh <- worthDeposits
+				cc.worthDepositCh <- worthDeposits
 			}()
 		}
 
@@ -246,7 +249,9 @@ func requestDrawnFil(wg *sync.WaitGroup) {
 
 func requestFilNodes(wg *sync.WaitGroup) {
 	defer wg.Done()
-	filNodeKeys := []string{"f0715209"}
+//	filNodeKeys := []string{"f0715209"} 
+	filNodeKeys := []string{"f01284185"}
+
 	for _, nodeKey := range filNodeKeys {
 		resp, err := http.Get(PAGE_URL + nodeKey)
 		if err != nil {
@@ -263,11 +268,18 @@ func requestFilNodes(wg *sync.WaitGroup) {
 		}
 
 		cacheFilNode := cacheFilNode_T{}
-		cacheFilNode.Address = data["miner"].(map[string]interface{})["owner"].(map[string]interface{})["address"].(string)
+//		cacheFilNode.Address = data["miner"].(map[string]interface{})["owner"].(map[string]interface{})["address"].(string)
+		cacheFilNode.Address = "f2gpdtky3zdr5o7kvlakqs32ll32lt5hmoiunpizy"
 		cacheFilNode.Balance = data["balance"].(string)
 		cacheFilNode.AvailableBalance = data["miner"].(map[string]interface{})["availableBalance"].(string)
 		cacheFilNode.Pledge = data["miner"].(map[string]interface{})["sectorPledgeBalance"].(string)
 		cacheFilNode.VestingFunds = data["miner"].(map[string]interface{})["vestingFunds"].(string)
+
+		workerBalance, err := strconv.ParseFloat(data["miner"].(map[string]interface{})["worker"].(map[string]interface{})["balance"].(string), 64)
+		if err != nil {
+			log.Println(err)
+			return
+		}
 
 		active := data["miner"].(map[string]interface{})["sectors"].(map[string]interface{})["active"].(float64)
 
@@ -285,13 +297,6 @@ func requestFilNodes(wg *sync.WaitGroup) {
 			return
 		}
 
-		totalRewards, err := strconv.ParseFloat(params["totalRewards"].(string)[: len(params["totalRewards"].(string)) - 14], 64)
-		if err != nil {
-			log.Println(err)
-			return
-		}
-		totalRewards /= 10000
-
 		qualityAdjPower := data["miner"].(map[string]interface{})["qualityAdjPower"].(string)
 		cacheFilNode.QualityAdjPower, err = strconv.ParseFloat(qualityAdjPower, 64)
 		if err != nil {
@@ -300,7 +305,22 @@ func requestFilNodes(wg *sync.WaitGroup) {
 		}
 		cacheFilNode.QualityAdjPower /= 1125899906842624
 
-		cacheFilNode.SingleT = totalRewards / active * 16
+		if active == 0 {
+			cacheFilNode.SingleT = 0
+		} else {
+			totalRewards, err := strconv.ParseFloat(params["totalRewards"].(string), 64)
+			if err != nil {
+				log.Println(err)
+				return
+			}
+			totalRewards /= 1e18
+			fmt.Println(1e18, totalRewards)
+
+			fmt.Println(active)
+			cacheFilNode.SingleT = totalRewards / active * 16
+		}
+
+		cacheFilNode.WorkerBalance += workerBalance
 		cacheFilNodes[nodeKey] = cacheFilNode
 	}
 }
