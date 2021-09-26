@@ -38,7 +38,8 @@ func newLog() *logger.Logger {
 		LogFileMaxNum: 10,
 		LogFileNumToDel: 1,
 		LogLevel: logger.LogLevelInfo,
-		LogDest: logger.LogDestFile, // | logger.LogDestConsole,
+	//	LogDest: logger.LogDestFile,
+		LogDest: logger.LogDestConsole,
 		Flag: logger.ControlFlagLogDate | logger.ControlFlagLogLineNum,
 	}
 	log, err := logger.New(config)
