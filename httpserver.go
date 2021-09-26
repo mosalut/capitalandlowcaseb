@@ -8,8 +8,6 @@ import (
 	"net/http"
 	"math/big"
 	"time"
-	"fmt"
-	"log"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gin-contrib/cors"
@@ -117,7 +115,7 @@ func getCode(c *gin.Context) {
 	return
 	_, ok := gettingCodes[c.ClientIP()]
 	if ok {
-		fmt.Println("code waiting")
+		log.Info("code waiting")
 		return
 	}
 
@@ -125,7 +123,7 @@ func getCode(c *gin.Context) {
 
 	code, err := rand.Int(rand.Reader, big.NewInt(0x1000000))
 	if err != nil {
-		log.Println(err)
+		log.Error(err)
 		return
 	}
 	codeS := hex.EncodeToString(code.Bytes())
@@ -166,8 +164,7 @@ func getCode(c *gin.Context) {
 func signIn(c *gin.Context) {
 	accountP := c.PostForm("account")
 	codeP := c.PostForm("code")
-	fmt.Println(accountP)
-	fmt.Println(codeP)
+	log.Info("sign in:", accountP, codeP)
 
 	/*
 	accountM, ok := smsM[accountP]
@@ -256,11 +253,10 @@ func getCirulations (c *gin.Context) {
 //	if checkSignInOK(c, account, key) {
 		cirulations, err := getCirulationData()
 		if err != nil {
-			fmt.Println(err)
+			log.Error(err)
 			return
 		}
 
-		fmt.Println(cirulations)
 		c.JSON(http.StatusOK, gin.H {
 			"success": true,
 			"message": "ok",
@@ -275,11 +271,10 @@ func getWorthDeposits (c *gin.Context) {
 //	if checkSignInOK(c, account, key) {
 		worthDeposits, err := getWorthDepositData()
 		if err != nil {
-			fmt.Println(err)
+			log.Error(err)
 			return
 		}
 
-		fmt.Println(worthDeposits)
 		c.JSON(http.StatusOK, gin.H {
 			"success": true,
 			"message": "ok",
@@ -294,11 +289,10 @@ func getFilDrawns (c *gin.Context) {
 	if checkSignInOK(c, account, key) {
 		drawns, err := getFilDrawnsData()
 		if err != nil {
-			fmt.Println(err)
+			log.Error(err)
 			return
 		}
 
-		fmt.Println(drawns)
 		c.JSON(http.StatusOK, gin.H {
 			"success": true,
 			"message": "ok",
@@ -313,11 +307,10 @@ func getCfilDrawns (c *gin.Context) {
 	if checkSignInOK(c, account, key) {
 		drawns, err := getCfilDrawnsData()
 		if err != nil {
-			fmt.Println(err)
+			log.Error(err)
 			return
 		}
 
-		fmt.Println(drawns)
 		c.JSON(http.StatusOK, gin.H {
 			"success": true,
 			"message": "ok",
@@ -507,21 +500,21 @@ func pushCfilDrawns(c *gin.Context, data []float64) {
 }
 
 func startPing(conns map[string]connection_I) {
-	for _, c := range conns {
-		go ping(c)
+	for {
+		for _, c := range conns {
+			go ping(c)
+		}
+		modTime := time.Now().Unix() % 10
+		time.Sleep(time.Second * time.Duration(TIME_CFILTOFIL - modTime))
 	}
 }
 
 func ping(c connection_I) {
-	for {
-		switch c.(type) {
-		case *conn_T:
-			c.(*conn_T).pingCh <- byte(0)
-		case *conn2_T:
-			c.(*conn2_T).pingCh <- byte(0)
-		}
-		modTime := time.Now().Unix() % 10
-		time.Sleep(time.Second * time.Duration(TIME_CFILTOFIL - modTime))
+	switch c.(type) {
+	case *conn_T:
+		c.(*conn_T).pingCh <- byte(0)
+	case *conn2_T:
+		c.(*conn2_T).pingCh <- byte(0)
 	}
 }
 

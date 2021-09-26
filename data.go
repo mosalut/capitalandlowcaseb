@@ -8,8 +8,6 @@ import (
 	"encoding/json"
 	"strconv"
 	"time"
-	"fmt"
-	"log"
 )
 
 const (
@@ -50,6 +48,8 @@ var cacheFilNodes = make(map[string]cacheFilNode_T)
 var cacheLowcaseB string
 
 func listenRequests() {
+	defer recoverPanic()
+
 	for {
 		wg := &sync.WaitGroup{}
 		wg.Add(5)
@@ -71,25 +71,25 @@ func listenRequests() {
 
 				cirulations, err := getCirulationData()
 				if err != nil {
-					log.Println(err)
+					log.Error(err)
 				}
 				cc.cirulationCh <- cirulations
 
 				worthDeposits, err := getWorthDepositData()
 				if err != nil {
-					log.Println(err)
+					log.Error(err)
 				}
 				cc.worthDepositCh <- worthDeposits
 
 				filDrawns, err := getFilDrawnsData()
 				if err != nil {
-					log.Println(err)
+					log.Error(err)
 				}
 				cc.filDrawnsCh <- filDrawns
 
 				cfilDrawns, err := getCfilDrawnsData()
 				if err != nil {
-					log.Println(err)
+					log.Error(err)
 				}
 				cc.cfilDrawnsCh <- cfilDrawns
 			}()
@@ -100,13 +100,13 @@ func listenRequests() {
 			go func() {
 				cirulations, err := getCirulationData()
 				if err != nil {
-					log.Println(err)
+					log.Error(err)
 				}
 				cc.cirulationCh <- cirulations
 
 				worthDeposits, err := getWorthDepositData()
 				if err != nil {
-					log.Println(err)
+					log.Error(err)
 				}
 				cc.worthDepositCh <- worthDeposits
 			}()
@@ -219,14 +219,14 @@ func requestB(wg *sync.WaitGroup) {
 //	resp, err := http.Get(BSC_API_URL + "?module=account&action=balancemulti&address=" + BSC_WALLET_CAPITAL + "," + BSC_WALLET_LOWCASE + "&apikey=" + BSC_API_KEY)
 	resp, err := http.Get(BSC_API_URL + "?module=account&action=balance&address=" + BSC_WALLET_LOWCASE + "&apikey=" + BSC_API_KEY)
 	if err != nil {
-		log.Println(err)
+		log.Error(err)
 		return
 	}
 	defer resp.Body.Close()
 	data := make(map[string]interface{})
 	err = json.NewDecoder(resp.Body).Decode(&data)
 	if err != nil {
-		log.Println(err)
+		log.Error(err)
 		return
 	}
 
@@ -255,7 +255,7 @@ func requestFilNodes(wg *sync.WaitGroup) {
 	for _, nodeKey := range filNodeKeys {
 		resp, err := http.Get(PAGE_URL + nodeKey)
 		if err != nil {
-			log.Println(err)
+			log.Error(err)
 			return
 		}
 		defer resp.Body.Close()
@@ -263,7 +263,7 @@ func requestFilNodes(wg *sync.WaitGroup) {
 		data := make(map[string]interface{})
 		err = json.NewDecoder(resp.Body).Decode(&data)
 		if err != nil {
-			log.Println(err)
+			log.Error(err)
 			return
 		}
 
@@ -276,7 +276,7 @@ func requestFilNodes(wg *sync.WaitGroup) {
 
 		workerBalance, err := strconv.ParseFloat(data["miner"].(map[string]interface{})["worker"].(map[string]interface{})["balance"].(string), 64)
 		if err != nil {
-			log.Println(err)
+			log.Error(err)
 			return
 		}
 
@@ -284,7 +284,7 @@ func requestFilNodes(wg *sync.WaitGroup) {
 
 		respMining, err := http.Get(PAGE_URL + nodeKey + PAGE_URL_SUB_MINING)
 		if err != nil {
-			log.Println(err)
+			log.Error(err)
 			return
 		}
 		defer respMining.Body.Close()
@@ -292,14 +292,14 @@ func requestFilNodes(wg *sync.WaitGroup) {
 		params := make(map[string]interface{})
 		err = json.NewDecoder(respMining.Body).Decode(&params)
 		if err != nil {
-			log.Println(err)
+			log.Error(err)
 			return
 		}
 
 		qualityAdjPower := data["miner"].(map[string]interface{})["qualityAdjPower"].(string)
 		cacheFilNode.QualityAdjPower, err = strconv.ParseFloat(qualityAdjPower, 64)
 		if err != nil {
-			log.Println(err)
+			log.Error(err)
 			return
 		}
 		cacheFilNode.QualityAdjPower /= 1125899906842624
@@ -309,7 +309,7 @@ func requestFilNodes(wg *sync.WaitGroup) {
 		} else {
 			totalRewards, err := strconv.ParseFloat(params["totalRewards"].(string), 64)
 			if err != nil {
-				log.Println(err)
+				log.Error(err)
 				return
 			}
 			totalRewards /= 1e18
@@ -319,7 +319,7 @@ func requestFilNodes(wg *sync.WaitGroup) {
 
 		cacheFilNode.WorkerBalance += workerBalance
 		cacheFilNodes[nodeKey] = cacheFilNode
-		fmt.Println(cacheFilNode.Address)
+		log.Info(cacheFilNode.Address)
 	}
 }
 
@@ -331,4 +331,11 @@ func fibonache() []float64 {
 		balances[i] = value
 	}
 	return balances
+}
+
+func recoverPanic() {
+	err := recover()
+	if err != nil {
+		log.Error(err)
+	}
 }

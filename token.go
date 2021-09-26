@@ -4,7 +4,6 @@ import (
 	"crypto/md5"
 	"encoding/hex"
 	"time"
-	"fmt"
 )
 
 const overtime = 900
@@ -31,7 +30,6 @@ func validation(account, key, networking string) bool {
 			}
 
 			now := time.Now().Unix()
-			fmt.Println(now, conn.timestamp)
 			if now - conn.timestamp > 900 || k != hex.EncodeToString(conn.hash[:]) {
 				c.disconnect(k)
 				return false
