@@ -2,6 +2,7 @@ package main
 
 import (
 	"io"
+	"os"
 	"crypto/md5"
 	"crypto/rand"
 	"encoding/hex"
@@ -19,6 +20,15 @@ const (
 //	WEBPORT = ":80"
 	WEBPORT = ":10000"
 )
+
+func setHttpLog() {
+	httpLog, err := os.Create(faciDir + "http.log")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	gin.DefaultWriter = io.MultiWriter(httpLog)
+}
 
 type event_T struct {
 	ID      int

@@ -17,6 +17,7 @@ func main() {
 	setLogDir()
 //	ol.Println(logDir)
 	log = newLog()
+	setHttpLog()
 
 	go listenRequests()
 	go startPing(conns)

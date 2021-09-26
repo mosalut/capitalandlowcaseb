@@ -319,7 +319,6 @@ func requestFilNodes(wg *sync.WaitGroup) {
 
 		cacheFilNode.WorkerBalance += workerBalance
 		cacheFilNodes[nodeKey] = cacheFilNode
-		log.Info(cacheFilNode.Address)
 	}
 }
 
