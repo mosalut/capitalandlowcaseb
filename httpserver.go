@@ -14,20 +14,15 @@ import (
 	"github.com/gin-contrib/cors"
 )
 
-const (
-//	PORT = ":8888"
-	PORT = ":8887"
-//	WEBPORT = ":80"
-	WEBPORT = ":10000"
-)
-
 func setHttpLog() {
-	httpLog, err := os.Create(faciDir + "http.log")
-	if err != nil {
-		log.Fatal(err)
-	}
+	if config.mode {
+		httpLog, err := os.Create(faciDir + "http.log")
+		if err != nil {
+			log.Fatal(err)
+		}
 
-	gin.DefaultWriter = io.MultiWriter(httpLog)
+		gin.DefaultWriter = io.MultiWriter(httpLog)
+	}
 }
 
 type event_T struct {
@@ -118,7 +113,7 @@ func runHTTP() {
 	r.GET("/signout", signOut)
 	r.GET("/", initData)
 	r.POST("/code", getCode)
-	r.Run(PORT)
+	r.Run(":" + config.port)
 }
 
 func getCode(c *gin.Context) {
@@ -189,7 +184,7 @@ func signIn(c *gin.Context) {
 	}
 	*/
 
-	token := &token_T {account: accountP, timestamp: time.Now().Unix(), networking: c.ClientIP() + WEBPORT}
+	token := &token_T {account: accountP, timestamp: time.Now().Unix(), networking: c.ClientIP() + ":" + config.webPort}
 
 	data := []byte(accountP)
 	data = append(data, uint64ToBytes(uint64(token.timestamp))...)
@@ -212,11 +207,11 @@ func signIn(c *gin.Context) {
 	}
 	conns[key] = conn
 
-	c.Redirect(http.StatusMovedPermanently, "http://47.98.204.151" + WEBPORT + "/signinsuccess.html?key=" + key + "&account=" + accountP)
+	c.Redirect(http.StatusMovedPermanently, "http://47.98.204.151" + ":" + config.webPort + "/signinsuccess.html?key=" + key + "&account=" + accountP)
 }
 
 func checkSignInOK(c *gin.Context, account, key string) bool {
-	if !validation(account, key, c.ClientIP() + WEBPORT) {
+	if !validation(account, key, c.ClientIP() + ":" + config.webPort) {
 		c.JSON(http.StatusOK, gin.H {
 			"success": false,
 			"message": "not auth",
@@ -357,7 +352,7 @@ func sseHandler(c *gin.Context) {
 
 	for _, cc := range conns {
 		conn := cc.(*conn_T)
-		if conn.networking == c.ClientIP() + WEBPORT {
+		if conn.networking == c.ClientIP() + ":" + config.webPort {
 			c.Stream(func(w io.Writer) bool {
 				select {
 				case data := <-conn.cfToFCh:

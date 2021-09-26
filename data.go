@@ -60,6 +60,8 @@ func listenRequests() {
 		go requestFilNodes(wg)
 		wg.Wait()
 
+
+
 		for _, c := range conns {
 			cc := c.(*conn_T)
 			go func() {

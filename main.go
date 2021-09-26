@@ -15,9 +15,12 @@ func main() {
 	setHomeDir()
 	setFaciDir()
 	setLogDir()
-//	ol.Println(logDir)
+	readConf()
+	ol.Println(config)
+
 	log = newLog()
 	setHttpLog()
+
 
 	go listenRequests()
 	go startPing(conns)

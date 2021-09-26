@@ -1,14 +1,14 @@
-#create database faci;
+drop database faci;
+create database faci;
 use faci;
 
 create table if not exists hour_data (
 	id int auto_increment,
-	create_date date unique not null comment "日期",
-	apy varchar(32) not null comment "APY",
-	cfil_to_fil varchar(32) not null comment "cfil to fil",
-	capital_b varchar(32) not null comment "锁仓量B",
-	lowcase_b varchar(32) not null comment "可流通量b",
-	loss varchar(32) not null comment "损耗值",
+	create_time datetime unique not null comment "时间",
+	capital_b decimal(20, 4) not null comment "锁仓量B",
+	lowcase_b decimal(20, 4) not null comment "可流通量b",
+	cfil_to_fil decimal(6, 4) not null comment "cfil to fil",
+	count_drawns_fil decimal(20, 4) not null comment "累计已提取FIL",
 	primary key(id)
 );
 

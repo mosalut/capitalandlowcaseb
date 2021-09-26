@@ -7,6 +7,9 @@ import (
 	"github.com/antigloss/go/logger"
 )
 
+var logLevels = map[string]logger.LogDest{"file": logger.LogDestFile, "console": logger.LogDestConsole, "none": logger.LogDestNone}
+var logLevelKey string
+
 var (
 	homeDir string
 	faciDir string
@@ -38,8 +41,7 @@ func newLog() *logger.Logger {
 		LogFileMaxNum: 10,
 		LogFileNumToDel: 1,
 		LogLevel: logger.LogLevelInfo,
-	//	LogDest: logger.LogDestFile,
-		LogDest: logger.LogDestConsole,
+		LogDest: logLevels[logLevelKey],
 		Flag: logger.ControlFlagLogDate | logger.ControlFlagLogLineNum,
 	}
 	log, err := logger.New(config)
