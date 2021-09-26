@@ -8,8 +8,6 @@ import (
 	"encoding/json"
 	"strconv"
 	"time"
-//	"fmt"
-	"log"
 )
 
 const (
@@ -34,6 +32,7 @@ type cacheB_T struct {
 type cacheFilNode_T struct {
 	Address string `json:"address"`
 	Balance string `json:"balance"`
+	WorkerBalance float64 `json:"workerbalance"`
 	QualityAdjPower float64 `json:"qualityadjpower"`
 	AvailableBalance string `json:"availableBalance"`
 	Pledge string `json:"pledge"`
@@ -49,6 +48,8 @@ var cacheFilNodes = make(map[string]cacheFilNode_T)
 var cacheLowcaseB string
 
 func listenRequests() {
+	defer recoverPanic()
+
 	for {
 		wg := &sync.WaitGroup{}
 		wg.Add(5)
@@ -60,52 +61,54 @@ func listenRequests() {
 		wg.Wait()
 
 		for _, c := range conns {
+			cc := c.(*conn_T)
 			go func() {
-				c.cfToFCh <- cacheCfToF
-				c.lowcaseBCh <- cacheLowcaseB
-				c.lossCh <- cacheLoss
-				c.drawnFilCh <- cacheDrawnFil
-				c.filNodesCh <- cacheFilNodes
+				cc.cfToFCh <- cacheCfToF
+				cc.lowcaseBCh <- cacheLowcaseB
+				cc.lossCh <- cacheLoss
+				cc.drawnFilCh <- cacheDrawnFil
+				cc.filNodesCh <- cacheFilNodes
 
 				cirulations, err := getCirulationData()
 				if err != nil {
-					log.Println(err)
+					log.Error(err)
 				}
-				c.cirulationCh <- cirulations
+				cc.cirulationCh <- cirulations
 
 				worthDeposits, err := getWorthDepositData()
 				if err != nil {
-					log.Println(err)
+					log.Error(err)
 				}
-				c.worthDepositCh <- worthDeposits
+				cc.worthDepositCh <- worthDeposits
 
 				filDrawns, err := getFilDrawnsData()
 				if err != nil {
-					log.Println(err)
+					log.Error(err)
 				}
-				c.filDrawnsCh <- filDrawns
+				cc.filDrawnsCh <- filDrawns
 
 				cfilDrawns, err := getCfilDrawnsData()
 				if err != nil {
-					log.Println(err)
+					log.Error(err)
 				}
-				c.cfilDrawnsCh <- cfilDrawns
+				cc.cfilDrawnsCh <- cfilDrawns
 			}()
 		}
 
 		for _, c := range conns2 {
+			cc := c.(*conn2_T)
 			go func() {
 				cirulations, err := getCirulationData()
 				if err != nil {
-					log.Println(err)
+					log.Error(err)
 				}
-				c.cirulationCh <- cirulations
+				cc.cirulationCh <- cirulations
 
 				worthDeposits, err := getWorthDepositData()
 				if err != nil {
-					log.Println(err)
+					log.Error(err)
 				}
-				c.worthDepositCh <- worthDeposits
+				cc.worthDepositCh <- worthDeposits
 			}()
 		}
 
@@ -216,14 +219,14 @@ func requestB(wg *sync.WaitGroup) {
 //	resp, err := http.Get(BSC_API_URL + "?module=account&action=balancemulti&address=" + BSC_WALLET_CAPITAL + "," + BSC_WALLET_LOWCASE + "&apikey=" + BSC_API_KEY)
 	resp, err := http.Get(BSC_API_URL + "?module=account&action=balance&address=" + BSC_WALLET_LOWCASE + "&apikey=" + BSC_API_KEY)
 	if err != nil {
-		log.Println(err)
+		log.Error(err)
 		return
 	}
 	defer resp.Body.Close()
 	data := make(map[string]interface{})
 	err = json.NewDecoder(resp.Body).Decode(&data)
 	if err != nil {
-		log.Println(err)
+		log.Error(err)
 		return
 	}
 
@@ -246,11 +249,13 @@ func requestDrawnFil(wg *sync.WaitGroup) {
 
 func requestFilNodes(wg *sync.WaitGroup) {
 	defer wg.Done()
-	filNodeKeys := []string{"f0715209"}
+//	filNodeKeys := []string{"f0715209"} 
+	filNodeKeys := []string{"f01284185"}
+
 	for _, nodeKey := range filNodeKeys {
 		resp, err := http.Get(PAGE_URL + nodeKey)
 		if err != nil {
-			log.Println(err)
+			log.Error(err)
 			return
 		}
 		defer resp.Body.Close()
@@ -258,7 +263,7 @@ func requestFilNodes(wg *sync.WaitGroup) {
 		data := make(map[string]interface{})
 		err = json.NewDecoder(resp.Body).Decode(&data)
 		if err != nil {
-			log.Println(err)
+			log.Error(err)
 			return
 		}
 
@@ -269,11 +274,17 @@ func requestFilNodes(wg *sync.WaitGroup) {
 		cacheFilNode.Pledge = data["miner"].(map[string]interface{})["sectorPledgeBalance"].(string)
 		cacheFilNode.VestingFunds = data["miner"].(map[string]interface{})["vestingFunds"].(string)
 
+		workerBalance, err := strconv.ParseFloat(data["miner"].(map[string]interface{})["worker"].(map[string]interface{})["balance"].(string), 64)
+		if err != nil {
+			log.Error(err)
+			return
+		}
+
 		active := data["miner"].(map[string]interface{})["sectors"].(map[string]interface{})["active"].(float64)
 
 		respMining, err := http.Get(PAGE_URL + nodeKey + PAGE_URL_SUB_MINING)
 		if err != nil {
-			log.Println(err)
+			log.Error(err)
 			return
 		}
 		defer respMining.Body.Close()
@@ -281,27 +292,34 @@ func requestFilNodes(wg *sync.WaitGroup) {
 		params := make(map[string]interface{})
 		err = json.NewDecoder(respMining.Body).Decode(&params)
 		if err != nil {
-			log.Println(err)
+			log.Error(err)
 			return
 		}
-
-		totalRewards, err := strconv.ParseFloat(params["totalRewards"].(string)[: len(params["totalRewards"].(string)) - 14], 64)
-		if err != nil {
-			log.Println(err)
-			return
-		}
-		totalRewards /= 10000
 
 		qualityAdjPower := data["miner"].(map[string]interface{})["qualityAdjPower"].(string)
 		cacheFilNode.QualityAdjPower, err = strconv.ParseFloat(qualityAdjPower, 64)
 		if err != nil {
-			log.Println(err)
+			log.Error(err)
 			return
 		}
 		cacheFilNode.QualityAdjPower /= 1125899906842624
 
-		cacheFilNode.SingleT = totalRewards / active * 16
+		if active == 0 {
+			cacheFilNode.SingleT = 0
+		} else {
+			totalRewards, err := strconv.ParseFloat(params["totalRewards"].(string), 64)
+			if err != nil {
+				log.Error(err)
+				return
+			}
+			totalRewards /= 1e18
+
+			cacheFilNode.SingleT = totalRewards / active * 16
+		}
+
+		cacheFilNode.WorkerBalance += workerBalance
 		cacheFilNodes[nodeKey] = cacheFilNode
+		log.Info(cacheFilNode.Address)
 	}
 }
 
@@ -313,4 +331,11 @@ func fibonache() []float64 {
 		balances[i] = value
 	}
 	return balances
+}
+
+func recoverPanic() {
+	err := recover()
+	if err != nil {
+		log.Error(err)
+	}
 }

@@ -1,22 +1,25 @@
 package main
 
 import (
-	"log"
+	ol "log"
 )
 
-var account string
-var password string
-
 func init() {
-	log.SetFlags(log.Lshortfile | log.LstdFlags)
-	account = "aaaaaa"
-	password = "999999"
+	ol.SetFlags(ol.Lshortfile | ol.LstdFlags)
 
-	conns = make(map[string]*conn_T)
-	conns2 = make(map[string]*conn2_T)
+	conns = make(map[string]connection_I)
+	conns2 = make(map[string]connection_I)
 }
 
 func main() {
+	setHomeDir()
+	setFaciDir()
+	setLogDir()
+//	ol.Println(logDir)
+	log = newLog()
+
 	go listenRequests()
+	go startPing(conns)
+	go startPing(conns2)
 	runHTTP()
 }

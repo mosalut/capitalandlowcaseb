@@ -8,8 +8,6 @@ import (
 	"net/http"
 	"math/big"
 	"time"
-	"fmt"
-	"log"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gin-contrib/cors"
@@ -27,7 +25,7 @@ type event_T struct {
 	Message string
 }
 
-type connection_T interface {
+type connection_I interface {
 	disconnect(key string)
 }
 
@@ -48,7 +46,7 @@ type conn_T struct {
 }
 
 func (conn *conn_T)disconnect(key string) {
-	conn, ok := conns[key]
+	_, ok := conns[key]
 	if ok {
 		close(conn.cfToFCh)
 		close(conn.lowcaseBCh)
@@ -74,7 +72,7 @@ type conn2_T struct {
 }
 
 func (conn *conn2_T)disconnect(key string) {
-	conn, ok := conns2[key]
+	_, ok := conns2[key]
 	if ok {
 		close(conn.cirulationCh)
 		close(conn.worthDepositCh)
@@ -84,7 +82,7 @@ func (conn *conn2_T)disconnect(key string) {
 	}
 }
 
-var conns2 map[string]*conn2_T
+var conns2 map[string]connection_I
 
 type gettingCode_T byte
 
@@ -117,7 +115,7 @@ func getCode(c *gin.Context) {
 	return
 	_, ok := gettingCodes[c.ClientIP()]
 	if ok {
-		fmt.Println("code waiting")
+		log.Info("code waiting")
 		return
 	}
 
@@ -125,7 +123,7 @@ func getCode(c *gin.Context) {
 
 	code, err := rand.Int(rand.Reader, big.NewInt(0x1000000))
 	if err != nil {
-		log.Println(err)
+		log.Error(err)
 		return
 	}
 	codeS := hex.EncodeToString(code.Bytes())
@@ -166,8 +164,7 @@ func getCode(c *gin.Context) {
 func signIn(c *gin.Context) {
 	accountP := c.PostForm("account")
 	codeP := c.PostForm("code")
-	fmt.Println(accountP)
-	fmt.Println(codeP)
+	log.Info("sign in:", accountP, codeP)
 
 	/*
 	accountM, ok := smsM[accountP]
@@ -256,11 +253,10 @@ func getCirulations (c *gin.Context) {
 //	if checkSignInOK(c, account, key) {
 		cirulations, err := getCirulationData()
 		if err != nil {
-			fmt.Println(err)
+			log.Error(err)
 			return
 		}
 
-		fmt.Println(cirulations)
 		c.JSON(http.StatusOK, gin.H {
 			"success": true,
 			"message": "ok",
@@ -275,11 +271,10 @@ func getWorthDeposits (c *gin.Context) {
 //	if checkSignInOK(c, account, key) {
 		worthDeposits, err := getWorthDepositData()
 		if err != nil {
-			fmt.Println(err)
+			log.Error(err)
 			return
 		}
 
-		fmt.Println(worthDeposits)
 		c.JSON(http.StatusOK, gin.H {
 			"success": true,
 			"message": "ok",
@@ -294,11 +289,10 @@ func getFilDrawns (c *gin.Context) {
 	if checkSignInOK(c, account, key) {
 		drawns, err := getFilDrawnsData()
 		if err != nil {
-			fmt.Println(err)
+			log.Error(err)
 			return
 		}
 
-		fmt.Println(drawns)
 		c.JSON(http.StatusOK, gin.H {
 			"success": true,
 			"message": "ok",
@@ -313,11 +307,10 @@ func getCfilDrawns (c *gin.Context) {
 	if checkSignInOK(c, account, key) {
 		drawns, err := getCfilDrawnsData()
 		if err != nil {
-			fmt.Println(err)
+			log.Error(err)
 			return
 		}
 
-		fmt.Println(drawns)
 		c.JSON(http.StatusOK, gin.H {
 			"success": true,
 			"message": "ok",
@@ -352,9 +345,9 @@ func sseHandler(c *gin.Context) {
 //	c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
 
 
-	for _, conn := range conns {
+	for _, cc := range conns {
+		conn := cc.(*conn_T)
 		if conn.networking == c.ClientIP() + WEBPORT {
-			go ping(conn)
 			c.Stream(func(w io.Writer) bool {
 				select {
 				case data := <-conn.cfToFCh:
@@ -393,19 +386,18 @@ func sseHandler2(c *gin.Context) {
 //	c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
 
 	key := c.ClientIP()
-	conn, ok := conns2[key]
+	cc, ok := conns2[key]
 	if ok {
-		conn.disconnect(key)
+		cc.disconnect(key)
 	}
 
-	conn = &conn2_T {
+	conn := &conn2_T {
 		make(chan []float64),
 		make(chan []float64),
 		make(chan byte),
 	}
 	conns2[key] = conn
 
-	go ping(conn)
 	c.Stream(func(w io.Writer) bool {
 		select {
 		case data := <-conn.cirulationCh:
@@ -507,16 +499,22 @@ func pushCfilDrawns(c *gin.Context, data []float64) {
 	})
 }
 
-func ping(c connection_T) {
+func startPing(conns map[string]connection_I) {
 	for {
-		switch c.(type) {
-		case *conn_T:
-			c.(*conn_T).pingCh <- byte(0)
-		case *conn2_T:
-			c.(*conn2_T).pingCh <- byte(0)
+		for _, c := range conns {
+			go ping(c)
 		}
 		modTime := time.Now().Unix() % 10
 		time.Sleep(time.Second * time.Duration(TIME_CFILTOFIL - modTime))
+	}
+}
+
+func ping(c connection_I) {
+	switch c.(type) {
+	case *conn_T:
+		c.(*conn_T).pingCh <- byte(0)
+	case *conn2_T:
+		c.(*conn2_T).pingCh <- byte(0)
 	}
 }
 
