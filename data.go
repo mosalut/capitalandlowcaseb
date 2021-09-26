@@ -34,12 +34,12 @@ type cacheB_T struct {
 type cacheFilNode_T struct {
 	Address string `json:"address"`
 	Balance string `json:"balance"`
+	WorkerBalance float64 `json:"workerbalance"`
 	QualityAdjPower float64 `json:"qualityadjpower"`
 	AvailableBalance string `json:"availableBalance"`
 	Pledge string `json:"pledge"`
 	VestingFunds string `json:"vestingFunds"`
 	SingleT float64 `json:"singlet"`
-	WorkerBalance float64 `json:"workerbalance"`
 }
 
 // var cacheB cacheB_T
@@ -268,8 +268,7 @@ func requestFilNodes(wg *sync.WaitGroup) {
 		}
 
 		cacheFilNode := cacheFilNode_T{}
-//		cacheFilNode.Address = data["miner"].(map[string]interface{})["owner"].(map[string]interface{})["address"].(string)
-		cacheFilNode.Address = "f2gpdtky3zdr5o7kvlakqs32ll32lt5hmoiunpizy"
+		cacheFilNode.Address = data["miner"].(map[string]interface{})["owner"].(map[string]interface{})["address"].(string)
 		cacheFilNode.Balance = data["balance"].(string)
 		cacheFilNode.AvailableBalance = data["miner"].(map[string]interface{})["availableBalance"].(string)
 		cacheFilNode.Pledge = data["miner"].(map[string]interface{})["sectorPledgeBalance"].(string)
@@ -314,14 +313,13 @@ func requestFilNodes(wg *sync.WaitGroup) {
 				return
 			}
 			totalRewards /= 1e18
-			fmt.Println(1e18, totalRewards)
 
-			fmt.Println(active)
 			cacheFilNode.SingleT = totalRewards / active * 16
 		}
 
 		cacheFilNode.WorkerBalance += workerBalance
 		cacheFilNodes[nodeKey] = cacheFilNode
+		fmt.Println(cacheFilNode.Address)
 	}
 }
 
