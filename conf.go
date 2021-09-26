@@ -12,6 +12,7 @@ var config *config_T
 type database_T struct {
 	user string
 	password string
+	name string
 }
 
 type server_T struct {
@@ -25,6 +26,7 @@ type config_T struct {
 	logLevelKey string
 	server_T
 	database_T
+	nodes []string
 }
 
 func readConf() {
@@ -47,4 +49,7 @@ func readConf() {
 
 	config.user = cfg.Section("database").Key("user").String()
 	config.password = cfg.Section("database").Key("password").String()
+	config.name = cfg.Section("database").Key("name").String()
+
+	config.nodes = cfg.Section("filnodes").Key("nodes").Strings(",")
 }

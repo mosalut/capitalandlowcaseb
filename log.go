@@ -8,7 +8,6 @@ import (
 )
 
 var logLevels = map[string]logger.LogDest{"file": logger.LogDestFile, "console": logger.LogDestConsole, "none": logger.LogDestNone}
-var logLevelKey string
 
 var (
 	homeDir string
@@ -41,7 +40,7 @@ func newLog() *logger.Logger {
 		LogFileMaxNum: 10,
 		LogFileNumToDel: 1,
 		LogLevel: logger.LogLevelInfo,
-		LogDest: logLevels[logLevelKey],
+		LogDest: logLevels[config.logLevelKey],
 		Flag: logger.ControlFlagLogDate | logger.ControlFlagLogLineNum,
 	}
 	log, err := logger.New(config)

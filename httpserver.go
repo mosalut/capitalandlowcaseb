@@ -36,10 +36,10 @@ type connection_I interface {
 
 type conn_T struct {
 	*token_T
-	cfToFCh chan string
-	lowcaseBCh chan string
-	lossCh chan string
-	drawnFilCh chan string
+	cfToFCh chan float64
+	lowcaseBCh chan float64
+	lossCh chan float64
+	drawnFilCh chan float64
 	filNodesCh chan map[string]cacheFilNode_T
 
 	cirulationCh chan []float64
@@ -194,10 +194,10 @@ func signIn(c *gin.Context) {
 
 	conn := &conn_T {
 		token,
-		make(chan string),
-		make(chan string),
-		make(chan string),
-		make(chan string),
+		make(chan float64),
+		make(chan float64),
+		make(chan float64),
+		make(chan float64),
 		make(chan map[string]cacheFilNode_T),
 		make(chan []float64),
 		make(chan []float64),
@@ -419,7 +419,7 @@ func sseHandler2(c *gin.Context) {
 }
 
 // 年化收益率
-func pushApyRate(c *gin.Context, data string) {
+func pushApyRate(c *gin.Context, data float64) {
 	c.SSEvent("apyrate", gin.H {
 		"success": true,
 		"message": "ok",
@@ -428,7 +428,7 @@ func pushApyRate(c *gin.Context, data string) {
 }
 
 // CfilToFil
-func pushCfilToFil(c *gin.Context, data string) {
+func pushCfilToFil(c *gin.Context, data float64) {
 	c.SSEvent("cfiltofil", gin.H {
 		"success": true,
 		"message": "ok",
@@ -437,7 +437,7 @@ func pushCfilToFil(c *gin.Context, data string) {
 }
 
 // 可流通量b
-func pushLowcaseB(c *gin.Context, data string) {
+func pushLowcaseB(c *gin.Context, data float64) {
 	c.SSEvent("lowcaseb", gin.H {
 		"success": true,
 		"message": "ok",
@@ -446,7 +446,7 @@ func pushLowcaseB(c *gin.Context, data string) {
 }
 
 // 损耗值
-func pushLoss(c *gin.Context, data string) {
+func pushLoss(c *gin.Context, data float64) {
 	c.SSEvent("loss", gin.H {
 		"success": true,
 		"message": "ok",
@@ -455,7 +455,7 @@ func pushLoss(c *gin.Context, data string) {
 }
 
 // 累计已提取FIL
-func pushDrawnFil(c *gin.Context, data string) {
+func pushDrawnFil(c *gin.Context, data float64) {
 	c.SSEvent("drawnfil", gin.H {
 		"success": true,
 		"message": "ok",
@@ -515,6 +515,7 @@ func startPing(conns map[string]connection_I) {
 }
 
 func ping(c connection_I) {
+	defer recoverPanic()
 	switch c.(type) {
 	case *conn_T:
 		c.(*conn_T).pingCh <- byte(0)

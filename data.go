@@ -31,25 +31,24 @@ type cacheB_T struct {
 
 type cacheFilNode_T struct {
 	Address string `json:"address"`
-	Balance string `json:"balance"`
+	Balance float64 `json:"balance"`
 	WorkerBalance float64 `json:"workerbalance"`
 	QualityAdjPower float64 `json:"qualityadjpower"`
-	AvailableBalance string `json:"availableBalance"`
-	Pledge string `json:"pledge"`
-	VestingFunds string `json:"vestingFunds"`
+	AvailableBalance float64 `json:"availableBalance"`
+	Pledge float64 `json:"pledge"`
+	VestingFunds float64 `json:"vestingFunds"`
 	SingleT float64 `json:"singlet"`
 }
 
 // var cacheB cacheB_T
-var cacheCfToF string
-var cacheLoss string
-var cacheDrawnFil string
+var cacheCfToF float64
+var cacheLoss float64
+var cacheDrawnFil float64
 var cacheFilNodes = make(map[string]cacheFilNode_T)
-var cacheLowcaseB string
+var cacheLowcaseB float64
+var cacheCountWorkerBalance float64
 
 func listenRequests() {
-	defer recoverPanic()
-
 	for {
 		wg := &sync.WaitGroup{}
 		wg.Add(5)
@@ -60,11 +59,26 @@ func listenRequests() {
 		go requestFilNodes(wg)
 		wg.Wait()
 
+		id, err := insertHourData(cacheLowcaseB, cacheDrawnFil)
+		if err != nil {
+			log.Error(err)
+			continue
+		}
 
+		err = insertFilNodes(id, cacheFilNodes)
+		if err != nil {
+			log.Error(err)
+			continue
+		}
+
+		for k, v := range cacheFilNodes {
+			log.Info(k, v)
+		}
 
 		for _, c := range conns {
 			cc := c.(*conn_T)
 			go func() {
+				defer recoverPanic()
 				cc.cfToFCh <- cacheCfToF
 				cc.lowcaseBCh <- cacheLowcaseB
 				cc.lossCh <- cacheLoss
@@ -100,6 +114,7 @@ func listenRequests() {
 		for _, c := range conns2 {
 			cc := c.(*conn2_T)
 			go func() {
+				defer recoverPanic()
 				cirulations, err := getCirulationData()
 				if err != nil {
 					log.Error(err)
@@ -213,7 +228,7 @@ func getCfilDrawnsData() ([]float64, error) {
 
 func requestCfilToFil(wg *sync.WaitGroup) {
 	defer wg.Done()
-	cacheCfToF = "1.2"
+	cacheCfToF = 1.2
 }
 
 func requestB(wg *sync.WaitGroup) {
@@ -232,29 +247,29 @@ func requestB(wg *sync.WaitGroup) {
 		return
 	}
 
-//	capitalB := data["result"].([]interface{})[0].(map[string]interface{})["balance"].(string)
-	cacheLowcaseB = data["result"].(string)
-
-//	cacheB.CapitalB = capitalB
-//	cacheB.LowcaseB = LowcaseB
+	lowcaseB, err := strconv.ParseFloat(data["result"].(string), 64)
+	if err != nil {
+		log.Error(err)
+		return
+	}
+	cacheLowcaseB = lowcaseB / 1e18
 }
 
 func requestLoss(wg *sync.WaitGroup) {
 	defer wg.Done()
-	cacheLoss = "0.321"
+	cacheLoss = 0.321
 }
 
 func requestDrawnFil(wg *sync.WaitGroup) {
 	defer wg.Done()
-	cacheDrawnFil = "1000"
+	cacheDrawnFil = 1000
 }
 
 func requestFilNodes(wg *sync.WaitGroup) {
 	defer wg.Done()
-//	filNodeKeys := []string{"f0715209"} 
-	filNodeKeys := []string{"f01284185"}
+	cacheCountWorkerBalance = 0
 
-	for _, nodeKey := range filNodeKeys {
+	for _, nodeKey := range config.nodes {
 		resp, err := http.Get(PAGE_URL + nodeKey)
 		if err != nil {
 			log.Error(err)
@@ -271,16 +286,41 @@ func requestFilNodes(wg *sync.WaitGroup) {
 
 		cacheFilNode := cacheFilNode_T{}
 		cacheFilNode.Address = data["miner"].(map[string]interface{})["owner"].(map[string]interface{})["address"].(string)
-		cacheFilNode.Balance = data["balance"].(string)
-		cacheFilNode.AvailableBalance = data["miner"].(map[string]interface{})["availableBalance"].(string)
-		cacheFilNode.Pledge = data["miner"].(map[string]interface{})["sectorPledgeBalance"].(string)
-		cacheFilNode.VestingFunds = data["miner"].(map[string]interface{})["vestingFunds"].(string)
+
+		balance, err := strconv.ParseFloat(data["balance"].(string), 64)
+		if err != nil {
+			log.Error(err)
+			return
+		}
+		cacheFilNode.Balance = balance / 1e18
+
+		availableBalance, err := strconv.ParseFloat(data["miner"].(map[string]interface{})["availableBalance"].(string), 64)
+		if err != nil {
+			log.Error(err)
+			return
+		}
+		cacheFilNode.AvailableBalance = availableBalance / 1e18
+
+		pledge, err := strconv.ParseFloat(data["miner"].(map[string]interface{})["sectorPledgeBalance"].(string), 64)
+		if err != nil {
+			log.Error(err)
+			return
+		}
+		cacheFilNode.Pledge = pledge / 1e18
+
+		vestingFunds, err := strconv.ParseFloat(data["miner"].(map[string]interface{})["vestingFunds"].(string), 64)
+		if err != nil {
+			log.Error(err)
+			return
+		}
+		cacheFilNode.VestingFunds = vestingFunds / 1e18
 
 		workerBalance, err := strconv.ParseFloat(data["miner"].(map[string]interface{})["worker"].(map[string]interface{})["balance"].(string), 64)
 		if err != nil {
 			log.Error(err)
 			return
 		}
+		cacheFilNode.WorkerBalance = workerBalance / 1e18
 
 		active := data["miner"].(map[string]interface{})["sectors"].(map[string]interface{})["active"].(float64)
 
@@ -298,13 +338,12 @@ func requestFilNodes(wg *sync.WaitGroup) {
 			return
 		}
 
-		qualityAdjPower := data["miner"].(map[string]interface{})["qualityAdjPower"].(string)
-		cacheFilNode.QualityAdjPower, err = strconv.ParseFloat(qualityAdjPower, 64)
+		qualityAdjPower, err := strconv.ParseFloat(data["miner"].(map[string]interface{})["qualityAdjPower"].(string), 64)
 		if err != nil {
 			log.Error(err)
 			return
 		}
-		cacheFilNode.QualityAdjPower /= 1125899906842624
+		cacheFilNode.QualityAdjPower = qualityAdjPower / 1125899906842624
 
 		if active == 0 {
 			cacheFilNode.SingleT = 0
@@ -319,7 +358,7 @@ func requestFilNodes(wg *sync.WaitGroup) {
 			cacheFilNode.SingleT = totalRewards / active * 16
 		}
 
-		cacheFilNode.WorkerBalance += workerBalance
+		cacheCountWorkerBalance += workerBalance
 		cacheFilNodes[nodeKey] = cacheFilNode
 	}
 }

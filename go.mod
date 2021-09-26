@@ -1,4 +1,4 @@
-module capitalandlowcaseb
+module faci
 
 go 1.16
 
