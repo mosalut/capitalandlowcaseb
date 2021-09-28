@@ -16,6 +16,11 @@ func init() {
 	setHttpLog()
 
 	initDB()
+
+	signIns[0] = signInDev
+	signIns[1] = signInRelease
+	signIn = signIns[config.sms]
+
 	conns = make(map[string]connection_I)
 	conns2 = make(map[string]connection_I)
 }

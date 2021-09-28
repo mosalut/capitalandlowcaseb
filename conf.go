@@ -19,11 +19,14 @@ type server_T struct {
 	ip string
 	port string
 	webPort string
+	webHost string
 	mode bool
 }
 
 type config_T struct {
 	logLevelKey string
+	period int64
+	sms int
 	server_T
 	database_T
 	nodes []string
@@ -39,9 +42,21 @@ func readConf() {
 
 	config = &config_T{}
 	config.logLevelKey = cfg.Section(ini.DEFAULT_SECTION).Key("log_level_key").String()
+	config.period, err = cfg.Section(ini.DEFAULT_SECTION).Key("period").Int64()
+	if err != nil {
+		ol.Fatal(err)
+	}
+	config.sms, err = cfg.Section(ini.DEFAULT_SECTION).Key("sms").Int()
+	if err != nil {
+		ol.Fatal(err)
+	}
+	if config.sms < 0 || config.sms > 1 {
+		ol.Fatal("invalid sms config")
+	}
 	config.ip = cfg.Section("server").Key("ip").String()
 	config.port = cfg.Section("server").Key("port").String()
 	config.webPort = cfg.Section("server").Key("web_port").String()
+	config.webHost = cfg.Section("server").Key("web_host").String()
 	config.mode, err = cfg.Section("server").Key("mode").Bool()
 	if err != nil {
 		ol.Fatal(err)

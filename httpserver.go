@@ -38,6 +38,7 @@ type conn_T struct {
 	*token_T
 	cfToFCh chan float64
 	lowcaseBCh chan float64
+	capitalBCh chan float64
 	lossCh chan float64
 	drawnFilCh chan float64
 	filNodesCh chan map[string]cacheFilNode_T
@@ -55,6 +56,7 @@ func (conn *conn_T)disconnect(key string) {
 	if ok {
 		close(conn.cfToFCh)
 		close(conn.lowcaseBCh)
+		close(conn.capitalBCh)
 		close(conn.lossCh)
 		close(conn.drawnFilCh)
 		close(conn.filNodesCh)
@@ -70,8 +72,9 @@ func (conn *conn_T)disconnect(key string) {
 }
 
 type conn2_T struct {
-	cirulationCh chan []float64
-	worthDepositCh chan []float64
+	capitalBCh chan float64
+	filDrawnsCh chan []float64
+	cfilDrawnsCh chan []float64
 
 	pingCh chan byte
 }
@@ -79,8 +82,9 @@ type conn2_T struct {
 func (conn *conn2_T)disconnect(key string) {
 	_, ok := conns2[key]
 	if ok {
-		close(conn.cirulationCh)
-		close(conn.worthDepositCh)
+		close(conn.capitalBCh)
+		close(conn.filDrawnsCh)
+		close(conn.cfilDrawnsCh)
 
 		close(conn.pingCh)
 		delete(conns, key)
@@ -98,6 +102,9 @@ func (gC *gettingCode_T) wait(ip string) {
 
 var gettingCodes = make(map[string]*gettingCode_T)
 
+var signIns [2]func(c *gin.Context)
+var signIn func(c *gin.Context)
+
 func runHTTP() {
 	r := gin.Default()
 	r.Use(cors.Default())
@@ -106,6 +113,7 @@ func runHTTP() {
 	r.GET("/sse", sseHandler)
 	r.GET("/sse2", sseHandler2)
 	r.GET("/testapi", testAPI)
+	r.GET("/capitalb", getCapitalB)
 	r.GET("/cirulations", getCirulations)
 	r.GET("/worthdeposits", getWorthDeposits)
 	r.GET("/fildrawns", getFilDrawns)
@@ -117,7 +125,6 @@ func runHTTP() {
 }
 
 func getCode(c *gin.Context) {
-	return
 	_, ok := gettingCodes[c.ClientIP()]
 	if ok {
 		log.Info("code waiting")
@@ -166,12 +173,11 @@ func getCode(c *gin.Context) {
 	go gettingCodes[c.ClientIP()].wait(c.ClientIP())
 }
 
-func signIn(c *gin.Context) {
+func signInRelease(c *gin.Context) {
 	accountP := c.PostForm("account")
 	codeP := c.PostForm("code")
 	log.Info("sign in:", accountP, codeP)
 
-	/*
 	accountM, ok := smsM[accountP]
 	if !ok {
 		c.String(http.StatusOK, "Invalid account")
@@ -182,7 +188,6 @@ func signIn(c *gin.Context) {
 		c.String(http.StatusOK, "Invalid code")
 		return
 	}
-	*/
 
 	token := &token_T {account: accountP, timestamp: time.Now().Unix(), networking: c.ClientIP() + ":" + config.webPort}
 
@@ -198,6 +203,7 @@ func signIn(c *gin.Context) {
 		make(chan float64),
 		make(chan float64),
 		make(chan float64),
+		make(chan float64),
 		make(chan map[string]cacheFilNode_T),
 		make(chan []float64),
 		make(chan []float64),
@@ -207,7 +213,38 @@ func signIn(c *gin.Context) {
 	}
 	conns[key] = conn
 
-	c.Redirect(http.StatusMovedPermanently, "http://47.98.204.151" + ":" + config.webPort + "/signinsuccess.html?key=" + key + "&account=" + accountP)
+	c.Redirect(http.StatusMovedPermanently, "http://" + config.webHost + ":" + config.webPort + "/signinsuccess.html?key=" + key + "&account=" + accountP)
+}
+
+func signInDev(c *gin.Context) {
+	accountP := c.PostForm("account")
+	log.Info("sign in:", accountP)
+
+	token := &token_T {account: accountP, timestamp: time.Now().Unix(), networking: c.ClientIP() + ":" + config.webPort}
+
+	data := []byte(accountP)
+	data = append(data, uint64ToBytes(uint64(token.timestamp))...)
+	token.hash = md5.Sum(data)
+
+	key := hex.EncodeToString(token.hash[:])
+
+	conn := &conn_T {
+		token,
+		make(chan float64),
+		make(chan float64),
+		make(chan float64),
+		make(chan float64),
+		make(chan float64),
+		make(chan map[string]cacheFilNode_T),
+		make(chan []float64),
+		make(chan []float64),
+		make(chan []float64),
+		make(chan []float64),
+		make(chan byte),
+	}
+	conns[key] = conn
+
+	c.Redirect(http.StatusMovedPermanently, "http://" + config.webHost + ":" + config.webPort + "/signinsuccess.html?key=" + key + "&account=" + accountP)
 }
 
 func checkSignInOK(c *gin.Context, account, key string) bool {
@@ -241,8 +278,9 @@ func initData(c *gin.Context) {
 			"success": true,
 			"message": "ok",
 			"data": gin.H {
-				"apyrate": "7",
+				"apyrate": 7,
 				"lowcaseb": cacheLowcaseB,
+				"capitalb": cacheCapitalB,
 				"cfiltofil": cacheCfToF,
 				"loss": cacheLoss,
 				"drawnfil": cacheDrawnFil,
@@ -252,10 +290,20 @@ func initData(c *gin.Context) {
 	}
 }
 
+func getCapitalB(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H {
+		"success": true,
+		"message": "ok",
+		"data": gin.H {
+			"capitalb": cacheCapitalB,
+		},
+	})
+}
+
 func getCirulations (c *gin.Context) {
-//	account := c.Query("account")
-//	key := c.Query("key")
-//	if checkSignInOK(c, account, key) {
+	account := c.Query("account")
+	key := c.Query("key")
+	if checkSignInOK(c, account, key) {
 		cirulations, err := getCirulationData()
 		if err != nil {
 			log.Error(err)
@@ -267,13 +315,13 @@ func getCirulations (c *gin.Context) {
 			"message": "ok",
 			"data": cirulations,
 		})
-//	}
+	}
 }
 
 func getWorthDeposits (c *gin.Context) {
-//	account := c.Query("account")
-//	key := c.Query("key")
-//	if checkSignInOK(c, account, key) {
+	account := c.Query("account")
+	key := c.Query("key")
+	if checkSignInOK(c, account, key) {
 		worthDeposits, err := getWorthDepositData()
 		if err != nil {
 			log.Error(err)
@@ -285,13 +333,13 @@ func getWorthDeposits (c *gin.Context) {
 			"message": "ok",
 			"data": worthDeposits,
 		})
-//	}
+	}
 }
 
 func getFilDrawns (c *gin.Context) {
-	account := c.Query("account")
-	key := c.Query("key")
-	if checkSignInOK(c, account, key) {
+//	account := c.Query("account")
+//	key := c.Query("key")
+//	if checkSignInOK(c, account, key) {
 		drawns, err := getFilDrawnsData()
 		if err != nil {
 			log.Error(err)
@@ -303,13 +351,13 @@ func getFilDrawns (c *gin.Context) {
 			"message": "ok",
 			"data": drawns,
 		})
-	}
+//	}
 }
 
 func getCfilDrawns (c *gin.Context) {
-	account := c.Query("account")
-	key := c.Query("key")
-	if checkSignInOK(c, account, key) {
+//	account := c.Query("account")
+//	key := c.Query("key")
+//	if checkSignInOK(c, account, key) {
 		drawns, err := getCfilDrawnsData()
 		if err != nil {
 			log.Error(err)
@@ -321,7 +369,7 @@ func getCfilDrawns (c *gin.Context) {
 			"message": "ok",
 			"data": drawns,
 		})
-	}
+//	}
 }
 
 func signOut (c *gin.Context) {
@@ -358,7 +406,9 @@ func sseHandler(c *gin.Context) {
 				case data := <-conn.cfToFCh:
 					pushCfilToFil(c, data) // CfilToFil
 				case data := <-conn.lowcaseBCh:
-					pushLowcaseB(c, data) // 可流通量b
+					pushLowcaseB(c, data) // 流动余额b
+				case data := <-conn.capitalBCh:
+					pushCapitalB(c, data) // 质押余额B
 				case data := <-conn.lossCh:
 					pushLoss(c, data) // 损耗值
 				case data := <-conn.drawnFilCh:
@@ -397,6 +447,7 @@ func sseHandler2(c *gin.Context) {
 	}
 
 	conn := &conn2_T {
+		make(chan float64),
 		make(chan []float64),
 		make(chan []float64),
 		make(chan byte),
@@ -405,10 +456,14 @@ func sseHandler2(c *gin.Context) {
 
 	c.Stream(func(w io.Writer) bool {
 		select {
-		case data := <-conn.cirulationCh:
-			pushCirulations(c, data) // CfilToFil
-		case data := <-conn.worthDepositCh:
-			pushWorthDeposits(c, data) // 可流通量b
+		case data := <-conn.capitalBCh:
+			pushCapitalB(c, data) // 质押余额B
+			/*
+		case data := <-conn.filDrawnsCh:
+			pushFilDrawns(c, data) // 总提取数额FIL
+		case data := <-conn.cfilDrawnsCh:
+			pushCfilDrawns(c, data) // CFIL净值
+			*/
 		case <-conn.pingCh:
 			pong(c)
 		}
@@ -436,9 +491,18 @@ func pushCfilToFil(c *gin.Context, data float64) {
 	})
 }
 
-// 可流通量b
+// 流动余额b
 func pushLowcaseB(c *gin.Context, data float64) {
 	c.SSEvent("lowcaseb", gin.H {
+		"success": true,
+		"message": "ok",
+		"data": data,
+	})
+}
+
+// 质押余额B
+func pushCapitalB(c *gin.Context, data float64) {
+	c.SSEvent("capitalb", gin.H {
 		"success": true,
 		"message": "ok",
 		"data": data,
@@ -509,8 +573,8 @@ func startPing(conns map[string]connection_I) {
 		for _, c := range conns {
 			go ping(c)
 		}
-		modTime := time.Now().Unix() % 10
-		time.Sleep(time.Second * time.Duration(TIME_CFILTOFIL - modTime))
+		modTime := time.Now().Unix() % config.period
+		time.Sleep(time.Second * time.Duration(config.period - modTime))
 	}
 }
 

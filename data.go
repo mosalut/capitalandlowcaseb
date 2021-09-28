@@ -11,8 +11,6 @@ import (
 )
 
 const (
-	TIME_CFILTOFIL = 10
-
 	BSC_API_URL = "https://api.bscscan.com/api"
 	BSC_API_KEY = "4C2328SSW63VFIWQZMYWD2NZERUUGN3VT1"
 //	BSC_WALLET_CAPITAL = "0x8A19846c7e057DBE6D77419BF1c864DAd0065d45"
@@ -46,10 +44,13 @@ var cacheLoss float64
 var cacheDrawnFil float64
 var cacheFilNodes = make(map[string]cacheFilNode_T)
 var cacheLowcaseB float64
-var cacheCountWorkerBalance float64
+var cacheCapitalB float64
 
 func listenRequests() {
 	for {
+		modTime := time.Now().Unix() % config.period
+		time.Sleep(time.Second * time.Duration(config.period - modTime))
+
 		wg := &sync.WaitGroup{}
 		wg.Add(5)
 		go requestCfilToFil(wg)
@@ -115,22 +116,19 @@ func listenRequests() {
 			cc := c.(*conn2_T)
 			go func() {
 				defer recoverPanic()
-				cirulations, err := getCirulationData()
+				filDrawns, err := getFilDrawnsData()
 				if err != nil {
 					log.Error(err)
 				}
-				cc.cirulationCh <- cirulations
+				cc.filDrawnsCh <- filDrawns
 
-				worthDeposits, err := getWorthDepositData()
+				cfilDrawns, err := getCfilDrawnsData()
 				if err != nil {
 					log.Error(err)
 				}
-				cc.worthDepositCh <- worthDeposits
+				cc.cfilDrawnsCh <- cfilDrawns
 			}()
 		}
-
-		modTime := time.Now().Unix() % 10
-		time.Sleep(time.Second * time.Duration(TIME_CFILTOFIL - modTime))
 	}
 
 }
@@ -233,7 +231,6 @@ func requestCfilToFil(wg *sync.WaitGroup) {
 
 func requestB(wg *sync.WaitGroup) {
 	defer wg.Done()
-//	resp, err := http.Get(BSC_API_URL + "?module=account&action=balancemulti&address=" + BSC_WALLET_CAPITAL + "," + BSC_WALLET_LOWCASE + "&apikey=" + BSC_API_KEY)
 	resp, err := http.Get(BSC_API_URL + "?module=account&action=balance&address=" + BSC_WALLET_LOWCASE + "&apikey=" + BSC_API_KEY)
 	if err != nil {
 		log.Error(err)
@@ -267,7 +264,7 @@ func requestDrawnFil(wg *sync.WaitGroup) {
 
 func requestFilNodes(wg *sync.WaitGroup) {
 	defer wg.Done()
-	cacheCountWorkerBalance = 0
+	cacheCapitalB = 0
 
 	for _, nodeKey := range config.nodes {
 		resp, err := http.Get(PAGE_URL + nodeKey)
@@ -358,7 +355,7 @@ func requestFilNodes(wg *sync.WaitGroup) {
 			cacheFilNode.SingleT = totalRewards / active * 16
 		}
 
-		cacheCountWorkerBalance += workerBalance
+		cacheCapitalB += balance + workerBalance
 		cacheFilNodes[nodeKey] = cacheFilNode
 	}
 }
