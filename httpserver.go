@@ -41,12 +41,12 @@ type conn_T struct {
 	capitalBCh chan float64
 	lossCh chan float64
 	drawnFilCh chan float64
-	filNodesCh chan map[string]cacheFilNode_T
+	filNodesCh chan map[string]filNode_T
 
-	cirulationCh chan []float64
-	worthDepositCh chan []float64
-	filDrawnsCh chan []float64
-	cfilDrawnsCh chan []float64
+	lowcaseBsCh chan []data24_T
+	worthDepositCh chan []data24_T
+	filDrawnsCh chan []data24_T
+	cfilDrawnsCh chan []data24_T
 
 	pingCh chan byte
 }
@@ -61,7 +61,7 @@ func (conn *conn_T)disconnect(key string) {
 		close(conn.drawnFilCh)
 		close(conn.filNodesCh)
 
-		close(conn.cirulationCh)
+		close(conn.lowcaseBsCh)
 		close(conn.worthDepositCh)
 		close(conn.filDrawnsCh)
 		close(conn.cfilDrawnsCh)
@@ -73,8 +73,8 @@ func (conn *conn_T)disconnect(key string) {
 
 type conn2_T struct {
 	capitalBCh chan float64
-	filDrawnsCh chan []float64
-	cfilDrawnsCh chan []float64
+	filDrawnsCh chan []data24_T
+	cfilDrawnsCh chan []data24_T
 
 	pingCh chan byte
 }
@@ -114,10 +114,7 @@ func runHTTP() {
 	r.GET("/sse2", sseHandler2)
 	r.GET("/testapi", testAPI)
 	r.GET("/capitalb", getCapitalB)
-	r.GET("/cirulations", getCirulations)
-	r.GET("/worthdeposits", getWorthDeposits)
-	r.GET("/fildrawns", getFilDrawns)
-	r.GET("/cfildrawns", getCfilDrawns)
+	r.GET("/curves", getCurves)
 	r.GET("/signout", signOut)
 	r.GET("/", initData)
 	r.POST("/code", getCode)
@@ -204,11 +201,11 @@ func signInRelease(c *gin.Context) {
 		make(chan float64),
 		make(chan float64),
 		make(chan float64),
-		make(chan map[string]cacheFilNode_T),
-		make(chan []float64),
-		make(chan []float64),
-		make(chan []float64),
-		make(chan []float64),
+		make(chan map[string]filNode_T),
+		make(chan []data24_T),
+		make(chan []data24_T),
+		make(chan []data24_T),
+		make(chan []data24_T),
 		make(chan byte),
 	}
 	conns[key] = conn
@@ -235,11 +232,11 @@ func signInDev(c *gin.Context) {
 		make(chan float64),
 		make(chan float64),
 		make(chan float64),
-		make(chan map[string]cacheFilNode_T),
-		make(chan []float64),
-		make(chan []float64),
-		make(chan []float64),
-		make(chan []float64),
+		make(chan map[string]filNode_T),
+		make(chan []data24_T),
+		make(chan []data24_T),
+		make(chan []data24_T),
+		make(chan []data24_T),
 		make(chan byte),
 	}
 	conns[key] = conn
@@ -279,12 +276,12 @@ func initData(c *gin.Context) {
 			"message": "ok",
 			"data": gin.H {
 				"apyrate": 7,
-				"lowcaseb": cacheLowcaseB,
-				"capitalb": cacheCapitalB,
-				"cfiltofil": cacheCfToF,
-				"loss": cacheLoss,
-				"drawnfil": cacheDrawnFil,
-				"filNodes": cacheFilNodes,
+				"lowcaseb": cache.LowcaseB,
+				"capitalb": cache.CapitalB,
+				"cfiltofil": cache.CfToF,
+				"loss": cache.Loss,
+				"drawnfil": cache.DrawnFil,
+				"filnodes": cache.FilNodes,
 			},
 		})
 	}
@@ -295,81 +292,32 @@ func getCapitalB(c *gin.Context) {
 		"success": true,
 		"message": "ok",
 		"data": gin.H {
-			"capitalb": cacheCapitalB,
+			"capitalb": cache.CapitalB,
 		},
 	})
 }
 
-func getCirulations (c *gin.Context) {
+func getCurves (c *gin.Context) {
 	account := c.Query("account")
 	key := c.Query("key")
 	if checkSignInOK(c, account, key) {
-		cirulations, err := getCirulationData()
+		lowcaseBs, worthDeposits, filDrawns, cfilDrawns, err := getCurveData()
 		if err != nil {
-			log.Error(err)
+			log.Info(err)
 			return
 		}
 
 		c.JSON(http.StatusOK, gin.H {
 			"success": true,
 			"message": "ok",
-			"data": cirulations,
+			"data": gin.H {
+				"lowcasebs": lowcaseBs,
+				"worthdeposits": worthDeposits,
+				"fildrawns": filDrawns,
+				"cfildrawns": cfilDrawns,
+			},
 		})
 	}
-}
-
-func getWorthDeposits (c *gin.Context) {
-	account := c.Query("account")
-	key := c.Query("key")
-	if checkSignInOK(c, account, key) {
-		worthDeposits, err := getWorthDepositData()
-		if err != nil {
-			log.Error(err)
-			return
-		}
-
-		c.JSON(http.StatusOK, gin.H {
-			"success": true,
-			"message": "ok",
-			"data": worthDeposits,
-		})
-	}
-}
-
-func getFilDrawns (c *gin.Context) {
-//	account := c.Query("account")
-//	key := c.Query("key")
-//	if checkSignInOK(c, account, key) {
-		drawns, err := getFilDrawnsData()
-		if err != nil {
-			log.Error(err)
-			return
-		}
-
-		c.JSON(http.StatusOK, gin.H {
-			"success": true,
-			"message": "ok",
-			"data": drawns,
-		})
-//	}
-}
-
-func getCfilDrawns (c *gin.Context) {
-//	account := c.Query("account")
-//	key := c.Query("key")
-//	if checkSignInOK(c, account, key) {
-		drawns, err := getCfilDrawnsData()
-		if err != nil {
-			log.Error(err)
-			return
-		}
-
-		c.JSON(http.StatusOK, gin.H {
-			"success": true,
-			"message": "ok",
-			"data": drawns,
-		})
-//	}
 }
 
 func signOut (c *gin.Context) {
@@ -415,8 +363,8 @@ func sseHandler(c *gin.Context) {
 					pushDrawnFil(c, data) // 累计已提取FIL
 				case data := <-conn.filNodesCh:
 					pushFilNodes(c, data)
-				case data := <-conn.cirulationCh:
-					pushCirulations(c, data)
+				case data := <-conn.lowcaseBsCh:
+					pushLowcaseBs(c, data)
 				case data := <-conn.worthDepositCh:
 					pushWorthDeposits(c, data)
 				case data := <-conn.filDrawnsCh:
@@ -448,8 +396,8 @@ func sseHandler2(c *gin.Context) {
 
 	conn := &conn2_T {
 		make(chan float64),
-		make(chan []float64),
-		make(chan []float64),
+		make(chan []data24_T),
+		make(chan []data24_T),
 		make(chan byte),
 	}
 	conns2[key] = conn
@@ -528,23 +476,23 @@ func pushDrawnFil(c *gin.Context, data float64) {
 }
 
 // B锁仓量投资FIL节点
-func pushFilNodes(c *gin.Context, data map[string]cacheFilNode_T) {
-	c.SSEvent("filNodes", gin.H {
+func pushFilNodes(c *gin.Context, data map[string]filNode_T) {
+	c.SSEvent("filnodes", gin.H {
 		"success": true,
 		"message": "ok",
 		"data": data,
 	})
 }
 
-func pushCirulations(c *gin.Context, data []float64) {
-	c.SSEvent("cirulations", gin.H {
+func pushLowcaseBs(c *gin.Context, data []data24_T) {
+	c.SSEvent("lowcasebs", gin.H {
 		"success": true,
 		"message": "ok",
 		"data": data,
 	})
 }
 
-func pushWorthDeposits(c *gin.Context, data []float64) {
+func pushWorthDeposits(c *gin.Context, data []data24_T) {
 	c.SSEvent("worthdeposits", gin.H {
 		"success": true,
 		"message": "ok",
@@ -552,7 +500,7 @@ func pushWorthDeposits(c *gin.Context, data []float64) {
 	})
 }
 
-func pushFilDrawns(c *gin.Context, data []float64) {
+func pushFilDrawns(c *gin.Context, data []data24_T) {
 	c.SSEvent("fildrawns", gin.H {
 		"success": true,
 		"message": "ok",
@@ -560,7 +508,7 @@ func pushFilDrawns(c *gin.Context, data []float64) {
 	})
 }
 
-func pushCfilDrawns(c *gin.Context, data []float64) {
+func pushCfilDrawns(c *gin.Context, data []data24_T) {
 	c.SSEvent("cfildrawns", gin.H {
 		"success": true,
 		"message": "ok",

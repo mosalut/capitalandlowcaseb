@@ -16,6 +16,7 @@ func init() {
 	setHttpLog()
 
 	initDB()
+	initCacheData()
 
 	signIns[0] = signInDev
 	signIns[1] = signInRelease
