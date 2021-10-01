@@ -31,7 +31,7 @@ type filNode_T struct {
 	SingleT float64 `json:"singlet"`
 }
 
-type data24_T struct {
+type curve_T struct {
 	CreateTime time.Time `json:"createtime"`
 	Value float64 `json:"value"`
 }
@@ -61,7 +61,7 @@ func listenRequests() {
 		go requestFilNodes(wg)
 		wg.Wait()
 
-		id, err := insertHourData(cache.LowcaseB, cache.DrawnFil)
+		id, err := insertHourData(cache.LowcaseB, cache.CapitalB, cache.DrawnFil)
 		if err != nil {
 			log.Error(err)
 			continue
@@ -83,18 +83,10 @@ func listenRequests() {
 				defer recoverPanic()
 				cc.cfToFCh <- cache.CfToF
 				cc.lowcaseBCh <- cache.LowcaseB
+				cc.capitalBCh <- cache.CapitalB
 				cc.lossCh <- cache.Loss
 				cc.drawnFilCh <- cache.DrawnFil
 				cc.filNodesCh <- cache.FilNodes
-
-				lowcaseBs, worthDeposits, filDrawns, cfilDrawns, err := getCurveData()
-				if err != nil {
-					log.Error(err)
-				}
-				cc.lowcaseBsCh <- lowcaseBs
-				cc.worthDepositCh <- worthDeposits
-				cc.filDrawnsCh <- filDrawns
-				cc.cfilDrawnsCh <- cfilDrawns
 			}()
 		}
 
@@ -102,12 +94,20 @@ func listenRequests() {
 			cc := c.(*conn2_T)
 			go func() {
 				defer recoverPanic()
-				_, _, filDrawns, cfilDrawns, err := getCurveData()
+				cc.capitalBCh <- cache.CapitalB
+				/*
+				filDrawns, err := getDrawnFilCurveData()
+				if err != nil {
+					log.Error(err)
+				}
+
+				cfilDrawns, err := getDrawnCfilCurveData()
 				if err != nil {
 					log.Error(err)
 				}
 				cc.filDrawnsCh <- filDrawns
 				cc.cfilDrawnsCh <- cfilDrawns
+				*/
 			}()
 		}
 	}
@@ -115,10 +115,10 @@ func listenRequests() {
 }
 
 // 质押余额/时
-func getData24() ([]data24_T, error) {
-	data24 := make([]data24_T, 24, 24)
+func getData24() ([]curve_T, error) {
+	curve := make([]curve_T, 24, 24)
 
-	for i, _ := range data24 {
+	for i, _ := range curve {
 		max := big.NewInt(65536)
 		integerI, err := rand.Int(rand.Reader, max)
 		if err != nil {
@@ -136,24 +136,24 @@ func getData24() ([]data24_T, error) {
 
 		integer, _ := integerF.Float64()
 		decimal, _ := decimalF.Float64()
-		data24[i].Value = integer + decimal / 100000
-		data24[i].CreateTime = time.Unix(time.Now().Unix() / config.period * config.period, 0)
+		curve[i].Value = integer + decimal / 100000
+		curve[i].CreateTime = time.Unix(time.Now().Unix() / config.period * config.period, 0)
 	}
 
-	return data24, nil
+	return curve, nil
 }
 
 // CFIL净值/5分钟
-func getCfilDrawnsData() []data24_T {
+func getCfilDrawnsData() []curve_T {
 	values := fibonache()
 
-	data24 := make([]data24_T, 288, 288)
-	for i, _ := range data24 {
-		data24[i].Value = values[i]
-		data24[i].CreateTime = time.Unix(time.Now().Unix() / config.period * config.period, 0)
+	curve := make([]curve_T, 288, 288)
+	for i, _ := range curve {
+		curve[i].Value = values[i]
+		curve[i].CreateTime = time.Unix(time.Now().Unix() / config.period * config.period, 0)
 	}
 
-	return data24
+	return curve
 }
 
 func requestCfilToFil(wg *sync.WaitGroup) {
@@ -290,6 +290,8 @@ func requestFilNodes(wg *sync.WaitGroup) {
 		cache.CapitalB += balance + workerBalance
 		cache.FilNodes[nodeKey] = filNode
 	}
+
+	cache.CapitalB /= 1e18
 }
 
 func fibonache() []float64 {

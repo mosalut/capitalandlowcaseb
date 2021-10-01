@@ -43,10 +43,10 @@ type conn_T struct {
 	drawnFilCh chan float64
 	filNodesCh chan map[string]filNode_T
 
-	lowcaseBsCh chan []data24_T
-	worthDepositCh chan []data24_T
-	filDrawnsCh chan []data24_T
-	cfilDrawnsCh chan []data24_T
+	lowcaseBsCh chan []curve_T
+	capitalBsCh chan []curve_T
+	filDrawnsCh chan []curve_T
+	cfilDrawnsCh chan []curve_T
 
 	pingCh chan byte
 }
@@ -62,7 +62,7 @@ func (conn *conn_T)disconnect(key string) {
 		close(conn.filNodesCh)
 
 		close(conn.lowcaseBsCh)
-		close(conn.worthDepositCh)
+		close(conn.capitalBCh)
 		close(conn.filDrawnsCh)
 		close(conn.cfilDrawnsCh)
 
@@ -73,8 +73,8 @@ func (conn *conn_T)disconnect(key string) {
 
 type conn2_T struct {
 	capitalBCh chan float64
-	filDrawnsCh chan []data24_T
-	cfilDrawnsCh chan []data24_T
+	filDrawnsCh chan []curve_T
+	cfilDrawnsCh chan []curve_T
 
 	pingCh chan byte
 }
@@ -202,10 +202,10 @@ func signInRelease(c *gin.Context) {
 		make(chan float64),
 		make(chan float64),
 		make(chan map[string]filNode_T),
-		make(chan []data24_T),
-		make(chan []data24_T),
-		make(chan []data24_T),
-		make(chan []data24_T),
+		make(chan []curve_T),
+		make(chan []curve_T),
+		make(chan []curve_T),
+		make(chan []curve_T),
 		make(chan byte),
 	}
 	conns[key] = conn
@@ -233,10 +233,10 @@ func signInDev(c *gin.Context) {
 		make(chan float64),
 		make(chan float64),
 		make(chan map[string]filNode_T),
-		make(chan []data24_T),
-		make(chan []data24_T),
-		make(chan []data24_T),
-		make(chan []data24_T),
+		make(chan []curve_T),
+		make(chan []curve_T),
+		make(chan []curve_T),
+		make(chan []curve_T),
 		make(chan byte),
 	}
 	conns[key] = conn
@@ -301,7 +301,22 @@ func getCurves (c *gin.Context) {
 	account := c.Query("account")
 	key := c.Query("key")
 	if checkSignInOK(c, account, key) {
-		lowcaseBs, worthDeposits, filDrawns, cfilDrawns, err := getCurveData()
+		lowcaseBs, err := getLowcaseBCurveData()
+		if err != nil {
+			log.Info(err)
+			return
+		}
+		capitalBs, err := getCapitalBCurveData()
+		if err != nil {
+			log.Info(err)
+			return
+		}
+		filDrawns, err := getDrawnFilCurveData()
+		if err != nil {
+			log.Info(err)
+			return
+		}
+		cfToFs, err := getCfToFCurveData()
 		if err != nil {
 			log.Info(err)
 			return
@@ -312,9 +327,9 @@ func getCurves (c *gin.Context) {
 			"message": "ok",
 			"data": gin.H {
 				"lowcasebs": lowcaseBs,
-				"worthdeposits": worthDeposits,
+				"capitalbs": capitalBs,
 				"fildrawns": filDrawns,
-				"cfildrawns": cfilDrawns,
+				"cftofs": cfToFs,
 			},
 		})
 	}
@@ -365,8 +380,8 @@ func sseHandler(c *gin.Context) {
 					pushFilNodes(c, data)
 				case data := <-conn.lowcaseBsCh:
 					pushLowcaseBs(c, data)
-				case data := <-conn.worthDepositCh:
-					pushWorthDeposits(c, data)
+				case data := <-conn.capitalBsCh:
+					pushCapitalBs(c, data)
 				case data := <-conn.filDrawnsCh:
 					pushFilDrawns(c, data)
 				case data := <-conn.cfilDrawnsCh:
@@ -396,8 +411,8 @@ func sseHandler2(c *gin.Context) {
 
 	conn := &conn2_T {
 		make(chan float64),
-		make(chan []data24_T),
-		make(chan []data24_T),
+		make(chan []curve_T),
+		make(chan []curve_T),
 		make(chan byte),
 	}
 	conns2[key] = conn
@@ -484,7 +499,7 @@ func pushFilNodes(c *gin.Context, data map[string]filNode_T) {
 	})
 }
 
-func pushLowcaseBs(c *gin.Context, data []data24_T) {
+func pushLowcaseBs(c *gin.Context, data []curve_T) {
 	c.SSEvent("lowcasebs", gin.H {
 		"success": true,
 		"message": "ok",
@@ -492,15 +507,15 @@ func pushLowcaseBs(c *gin.Context, data []data24_T) {
 	})
 }
 
-func pushWorthDeposits(c *gin.Context, data []data24_T) {
-	c.SSEvent("worthdeposits", gin.H {
+func pushCapitalBs(c *gin.Context, data []curve_T) {
+	c.SSEvent("capitalbs", gin.H {
 		"success": true,
 		"message": "ok",
 		"data": data,
 	})
 }
 
-func pushFilDrawns(c *gin.Context, data []data24_T) {
+func pushFilDrawns(c *gin.Context, data []curve_T) {
 	c.SSEvent("fildrawns", gin.H {
 		"success": true,
 		"message": "ok",
@@ -508,8 +523,8 @@ func pushFilDrawns(c *gin.Context, data []data24_T) {
 	})
 }
 
-func pushCfilDrawns(c *gin.Context, data []data24_T) {
-	c.SSEvent("cfildrawns", gin.H {
+func pushCfilDrawns(c *gin.Context, data []curve_T) {
+	c.SSEvent("cftofs", gin.H {
 		"success": true,
 		"message": "ok",
 		"data": data,

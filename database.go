@@ -14,7 +14,10 @@ var (
 	stmtInsert5MinsData *sql.Stmt
 	stmtInsertFilNodes *sql.Stmt
 	stmtQueryHourData *sql.Stmt
-	stmtQueryCurve *sql.Stmt
+	stmtQueryLowcaseBCurve *sql.Stmt
+	stmtQueryCapitalBCurve *sql.Stmt
+	stmtQueryDrawFilCurve *sql.Stmt
+	stmtQueryCfToFCurve *sql.Stmt
 	stmtQuery5MinsData *sql.Stmt
 	stmtQueryFilNodes *sql.Stmt
 )
@@ -26,7 +29,7 @@ func initDB() {
 		log.Fatal(err)
 	}
 
-	stmtInsertHourData, err = db.Prepare("insert into hour_data values(null, from_unixtime(unix_timestamp(current_timestamp) div ? * ?), ?, ?)")
+	stmtInsertHourData, err = db.Prepare("insert into hour_data values(null, from_unixtime(unix_timestamp(current_timestamp) div ? * ?), ?, ?, ?)")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -46,12 +49,27 @@ func initDB() {
 		log.Fatal(err)
 	}
 
-	stmtQueryCurve, err = db.Prepare("select * from hour_data order by create_time desc limit 24")
+	stmtQueryLowcaseBCurve, err = db.Prepare("select create_time, lowcase_b from hour_data order by create_time desc limit 24")
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	stmtQuery5MinsData, err = db.Prepare("select create_time, cfil_to_fil from 5_mins_data order by create_time desc limit 288")
+	stmtQueryCapitalBCurve, err = db.Prepare("select create_time, capital_b from hour_data order by create_time desc limit 24")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	stmtQueryDrawFilCurve, err = db.Prepare("select create_time, drawn_fil from hour_data order by create_time desc limit 24")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	stmtQuery5MinsData, err = db.Prepare("select create_time, cfil_to_fil from 5_mins_data order by create_time desc")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	stmtQueryCfToFCurve, err = db.Prepare("select create_time, cfil_to_fil from 5_mins_data order by create_time desc limit 288")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -62,9 +80,9 @@ func initDB() {
 	}
 }
 
-func insertHourData(lowcaseB, countDrawnsFil float64) (int64, error) {
+func insertHourData(lowcaseB, capitalB, countDrawnsFil float64) (int64, error) {
 	period := strconv.FormatInt(config.period, 10)
-	result, err := stmtInsertHourData.Exec(period, period, lowcaseB, countDrawnsFil)
+	result, err := stmtInsertHourData.Exec(period, period, lowcaseB, capitalB, countDrawnsFil)
 	if err != nil {
 		return 0, err
 	}
@@ -127,48 +145,119 @@ func initCacheData() {
 	}
 }
 
-func getCurveData() ([]data24_T, []data24_T, []data24_T, []data24_T, error) {
-	rows, err := stmtQueryCurve.Query()
+func getLowcaseBCurveData() ([]curve_T, error) {
+	rows, err := stmtQueryLowcaseBCurve.Query()
 	if err != nil {
-		return nil, nil, nil, nil, err
+		return nil, err
 	}
 	defer rows.Close()
 
-	lowcaseBs := make([]data24_T, 0, 24)
+	curves := make([]curve_T, 0, 24)
 	var timeStr string
 	for rows.Next() {
-		lowcaseB := data24_T{}
-		var id int
-		err := rows.Scan(&id, &timeStr, &lowcaseB.Value, &cache.DrawnFil)
+		curve := curve_T{}
+		err := rows.Scan(&timeStr, &curve.Value)
 		if err != nil {
-			return nil, nil, nil, nil, err
+			return nil, err
 		}
-		lowcaseB.CreateTime, err = time.Parse("2006-01-02 15:04:05", timeStr)
+		curve.CreateTime, err = time.Parse("2006-01-02 15:04:05", timeStr)
 		if err != nil {
-			return nil, nil, nil, nil, err
+			return nil, err
 		}
-		lowcaseBs = append([]data24_T{lowcaseB}, lowcaseBs...)
+		curves = append([]curve_T{curve}, curves...)
 	}
 
-	worthDeposits, err := getData24()
-	if err != nil {
-		return nil, nil, nil, nil, err
-	}
-
+	/*
 	filDrawns, err := getData24()
 	if err != nil {
-		return nil, nil, nil, nil, err
+		return nil, err
 	}
 
 	cfilDrawns := getCfilDrawnsData()
 
 	rows5, err := stmtQuery5MinsData.Query()
 	if err != nil {
-		return nil, nil, nil, nil, err
+		return nil, err
 	}
 	defer rows5.Close()
 	for rows5.Next() {
 	}
+	*/
 
-	return lowcaseBs, worthDeposits, filDrawns, cfilDrawns, nil
+	return curves, nil
+}
+
+func getCapitalBCurveData() ([]curve_T, error) {
+	rows, err := stmtQueryCapitalBCurve.Query()
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	curves := make([]curve_T, 0, 24)
+	var timeStr string
+	for rows.Next() {
+		curve := curve_T{}
+		err := rows.Scan(&timeStr, &curve.Value)
+		if err != nil {
+			return nil, err
+		}
+		curve.CreateTime, err = time.Parse("2006-01-02 15:04:05", timeStr)
+		if err != nil {
+			return nil, err
+		}
+		curves = append([]curve_T{curve}, curves...)
+	}
+
+	return curves, nil
+}
+
+func getDrawnFilCurveData() ([]curve_T, error) {
+	rows, err := stmtQueryDrawFilCurve.Query()
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	curves := make([]curve_T, 0, 24)
+	var timeStr string
+	for rows.Next() {
+		curve := curve_T{}
+		err := rows.Scan(&timeStr, &curve.Value)
+		if err != nil {
+			return nil, err
+		}
+		curve.CreateTime, err = time.Parse("2006-01-02 15:04:05", timeStr)
+		if err != nil {
+			return nil, err
+		}
+		curves = append([]curve_T{curve}, curves...)
+	}
+
+	return curves, nil
+}
+
+func getCfToFCurveData() ([]curve_T, error) {
+	rows, err := stmtQueryCfToFCurve.Query()
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	curves := make([]curve_T, 0, 288)
+	var timeStr string
+	for rows.Next() {
+		curve := curve_T{}
+		err := rows.Scan(&timeStr, &curve.Value)
+		if err != nil {
+			return nil, err
+		}
+		curve.CreateTime, err = time.Parse("2006-01-02 15:04:05", timeStr)
+		if err != nil {
+			return nil, err
+		}
+		curves = append([]curve_T{curve}, curves...)
+	}
+
+	return curves, nil
 }
