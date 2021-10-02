@@ -1,12 +1,13 @@
-#drop database faci_test;
+drop database faci_test;
 create database faci_test;
 use faci_test;
 
 create table if not exists hour_data (
 	id int auto_increment,
-	create_time datetime unique not null comment "时间戳",
-	lowcase_b decimal(36, 18) not null comment "可流通量b",
-	count_drawns_fil decimal(36, 18) not null comment "累计已提取FIL",
+	create_time datetime unique not null comment "时间",
+	lowcase_b decimal(36, 18) not null comment "流动余额b",
+	capital_b decimal(36, 18) not null comment "质押余额B",
+	drawn_fil decimal(36, 18) not null comment "提取FIL",
 	primary key(id)
 );
 
@@ -40,9 +41,10 @@ create procedure insertInitData()
 begin
 	declare i int default 0;
 	declare second int default 3600;
+#	declare second int default 60;
 	declare current_second bigint default current_timestamp;
 	while i < 24 do
-		insert into hour_data values(null, from_unixtime(unix_timestamp(current_second) div second * second - second * i), 0, 0);
+		insert into hour_data values(null, from_unixtime(unix_timestamp(current_second) div second * second - second * i), 0, 0, 0);
 		set i = i + 1;
 	end while;
 

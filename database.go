@@ -44,7 +44,7 @@ func initDB() {
 		log.Fatal(err)
 	}
 
-	stmtQueryHourData, err = db.Prepare("select id, lowcase_b, drawn_fil from hour_data order by create_time desc")
+	stmtQueryHourData, err = db.Prepare("select id, lowcase_b, capital_b, drawn_fil from hour_data order by create_time desc")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -108,7 +108,7 @@ func insertFilNodes(id int64, filNodes map[string]filNode_T) error {
 
 func initCacheData() {
 	var id int
-	err := stmtQueryHourData.QueryRow().Scan(&id, &cache.LowcaseB, &cache.DrawnFil)
+	err := stmtQueryHourData.QueryRow().Scan(&id, &cache.LowcaseB, &cache.CapitalB, &cache.DrawnFil)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -160,7 +160,7 @@ func getLowcaseBCurveData() ([]curve_T, error) {
 		if err != nil {
 			return nil, err
 		}
-		curve.CreateTime, err = time.Parse("2006-01-02 15:04:05", timeStr)
+		curve.CreateTime, err = time.ParseInLocation("2006-01-02 15:04:05", timeStr, time.Local)
 		if err != nil {
 			return nil, err
 		}
@@ -202,7 +202,7 @@ func getCapitalBCurveData() ([]curve_T, error) {
 		if err != nil {
 			return nil, err
 		}
-		curve.CreateTime, err = time.Parse("2006-01-02 15:04:05", timeStr)
+		curve.CreateTime, err = time.ParseInLocation("2006-01-02 15:04:05", timeStr, time.Local)
 		if err != nil {
 			return nil, err
 		}
@@ -227,7 +227,7 @@ func getDrawnFilCurveData() ([]curve_T, error) {
 		if err != nil {
 			return nil, err
 		}
-		curve.CreateTime, err = time.Parse("2006-01-02 15:04:05", timeStr)
+		curve.CreateTime, err = time.ParseInLocation("2006-01-02 15:04:05", timeStr, time.Local)
 		if err != nil {
 			return nil, err
 		}
@@ -252,7 +252,7 @@ func getCfToFCurveData() ([]curve_T, error) {
 		if err != nil {
 			return nil, err
 		}
-		curve.CreateTime, err = time.Parse("2006-01-02 15:04:05", timeStr)
+		curve.CreateTime, err = time.ParseInLocation("2006-01-02 15:04:05", timeStr, time.Local)
 		if err != nil {
 			return nil, err
 		}
