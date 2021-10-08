@@ -34,6 +34,18 @@ create table if not exists fil_node (
 	foreign key(hour_data_id) references hour_data(id) on update cascade on delete cascade
 );
 
+create table if not exists account (
+	id int auto_increment,
+	phonenumber char(11) unique not null,
+	name varchar(10) not null,
+	primary key(id)
+);
+
+insert into account values(null, "18930290075", "root");
+insert into account values(null, "17621953379", "robin");
+insert into account values(null, "18918979158", "guagua");
+insert into account values(null, "18252265411", "bobo");
+
 drop procedure if exists insertInitData;
 
 delimiter $$

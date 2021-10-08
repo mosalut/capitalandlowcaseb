@@ -181,6 +181,16 @@ func signInRelease(c *gin.Context) {
 	codeP := c.PostForm("code")
 	log.Info("sign in:", accountP, codeP)
 
+	name, err := hasSysAccount(accountP)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H {
+			"success": false,
+			"message": err.Error() + ": the account not in white list",
+		})
+		return
+	}
+
+
 	accountM, ok := smsM[accountP]
 	if !ok {
 		c.String(http.StatusOK, "Invalid account")
@@ -216,12 +226,21 @@ func signInRelease(c *gin.Context) {
 	}
 	conns[key] = conn
 
-	c.Redirect(http.StatusMovedPermanently, "http://" + config.webHost + ":" + config.webPort + "/signinsuccess.html?key=" + key + "&account=" + accountP)
+	c.Redirect(http.StatusMovedPermanently, "http://" + config.webHost + ":" + config.webPort + "/signinsuccess.html?key=" + key + "&account=" + accountP + "&name=" + name)
 }
 
 func signInDev(c *gin.Context) {
 	accountP := c.PostForm("account")
 	log.Info("sign in:", accountP)
+
+	name, err := hasSysAccount(accountP)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H {
+			"success": false,
+			"message": err.Error() + ": the account not in white list",
+		})
+		return
+	}
 
 	token := &token_T {account: accountP, timestamp: time.Now().Unix(), networking: c.ClientIP() + ":" + config.webPort}
 
@@ -247,7 +266,7 @@ func signInDev(c *gin.Context) {
 	}
 	conns[key] = conn
 
-	c.Redirect(http.StatusMovedPermanently, "http://" + config.webHost + ":" + config.webPort + "/signinsuccess.html?key=" + key + "&account=" + accountP)
+	c.Redirect(http.StatusMovedPermanently, "http://" + config.webHost + ":" + config.webPort + "/signinsuccess.html?key=" + key + "&account=" + accountP + "&name=" + name)
 }
 
 func checkSignInOK(c *gin.Context, account, key string) bool {

@@ -20,6 +20,7 @@ var (
 	stmtQueryCfToFCurve *sql.Stmt
 	stmtQuery5MinsData *sql.Stmt
 	stmtQueryFilNodes *sql.Stmt
+	stmtQuerySysAccount *sql.Stmt
 )
 
 func initDB() {
@@ -75,6 +76,11 @@ func initDB() {
 	}
 
 	stmtQueryFilNodes, err = db.Prepare("select node_name, address, balance, worker_balance, quality_adj_power, available_balance, pledge, vestingFunds, singletT from fil_node, hour_data where hour_data_id = ?")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	stmtQuerySysAccount, err = db.Prepare("select name from account where phonenumber = ?")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -252,4 +258,14 @@ func getCfToFCurveData() ([]curve_T, error) {
 	}
 
 	return curves, nil
+}
+
+func hasSysAccount(account string) (string, error) {
+	var name string
+	err := stmtQuerySysAccount.QueryRow(account).Scan(&name)
+	if err != nil {
+		return "", err
+	}
+
+	return name, err
 }

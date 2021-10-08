@@ -16,3 +16,5 @@
 # vendor/
 sftp-config.json
 index.html
+
+sql/dump.sql
