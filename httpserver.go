@@ -36,11 +36,11 @@ type connection_I interface {
 
 type conn_T struct {
 	*token_T
-	cfToFCh chan float64
-	lowcaseBCh chan float64
-	capitalBCh chan float64
+	cfToFCh chan *curve_T
+	lowcaseBCh chan *curve_T
+	capitalBCh chan *curve_T
 	lossCh chan float64
-	drawnFilCh chan float64
+	drawnFilCh chan *curve_T
 	filNodesCh chan map[string]filNode_T
 
 	lowcaseBsCh chan []curve_T
@@ -54,6 +54,7 @@ type conn_T struct {
 func (conn *conn_T)disconnect(key string) {
 	_, ok := conns[key]
 	if ok {
+		/*
 		close(conn.cfToFCh)
 		close(conn.lowcaseBCh)
 		close(conn.capitalBCh)
@@ -67,12 +68,14 @@ func (conn *conn_T)disconnect(key string) {
 		close(conn.cfilDrawnsCh)
 
 		close(conn.pingCh)
+		*/
 		delete(conns, key)
+		conn = nil
 	}
 }
 
 type conn2_T struct {
-	capitalBCh chan float64
+	capitalBCh chan *curve_T
 	filDrawnsCh chan []curve_T
 	cfilDrawnsCh chan []curve_T
 
@@ -82,12 +85,15 @@ type conn2_T struct {
 func (conn *conn2_T)disconnect(key string) {
 	_, ok := conns2[key]
 	if ok {
+		/*
 		close(conn.capitalBCh)
 		close(conn.filDrawnsCh)
 		close(conn.cfilDrawnsCh)
 
 		close(conn.pingCh)
+		*/
 		delete(conns, key)
+		conn = nil
 	}
 }
 
@@ -196,11 +202,11 @@ func signInRelease(c *gin.Context) {
 
 	conn := &conn_T {
 		token,
+		make(chan *curve_T),
+		make(chan *curve_T),
+		make(chan *curve_T),
 		make(chan float64),
-		make(chan float64),
-		make(chan float64),
-		make(chan float64),
-		make(chan float64),
+		make(chan *curve_T),
 		make(chan map[string]filNode_T),
 		make(chan []curve_T),
 		make(chan []curve_T),
@@ -227,11 +233,11 @@ func signInDev(c *gin.Context) {
 
 	conn := &conn_T {
 		token,
+		make(chan *curve_T),
+		make(chan *curve_T),
+		make(chan *curve_T),
 		make(chan float64),
-		make(chan float64),
-		make(chan float64),
-		make(chan float64),
-		make(chan float64),
+		make(chan *curve_T),
 		make(chan map[string]filNode_T),
 		make(chan []curve_T),
 		make(chan []curve_T),
@@ -270,6 +276,7 @@ func checkSignIn(c *gin.Context) {
 func initData(c *gin.Context) {
 	account := c.Query("account")
 	key := c.Query("key")
+	log.Info(cache.FilNodes)
 	if checkSignInOK(c, account, key) {
 		c.JSON(http.StatusOK, gin.H {
 			"success": true,
@@ -410,7 +417,7 @@ func sseHandler2(c *gin.Context) {
 	}
 
 	conn := &conn2_T {
-		make(chan float64),
+		make(chan *curve_T),
 		make(chan []curve_T),
 		make(chan []curve_T),
 		make(chan byte),
@@ -446,7 +453,7 @@ func pushApyRate(c *gin.Context, data float64) {
 }
 
 // CfilToFil
-func pushCfilToFil(c *gin.Context, data float64) {
+func pushCfilToFil(c *gin.Context, data *curve_T) {
 	c.SSEvent("cfiltofil", gin.H {
 		"success": true,
 		"message": "ok",
@@ -455,7 +462,7 @@ func pushCfilToFil(c *gin.Context, data float64) {
 }
 
 // 流动余额b
-func pushLowcaseB(c *gin.Context, data float64) {
+func pushLowcaseB(c *gin.Context, data *curve_T) {
 	c.SSEvent("lowcaseb", gin.H {
 		"success": true,
 		"message": "ok",
@@ -464,7 +471,7 @@ func pushLowcaseB(c *gin.Context, data float64) {
 }
 
 // 质押余额B
-func pushCapitalB(c *gin.Context, data float64) {
+func pushCapitalB(c *gin.Context, data *curve_T) {
 	c.SSEvent("capitalb", gin.H {
 		"success": true,
 		"message": "ok",
@@ -482,7 +489,7 @@ func pushLoss(c *gin.Context, data float64) {
 }
 
 // 累计已提取FIL
-func pushDrawnFil(c *gin.Context, data float64) {
+func pushDrawnFil(c *gin.Context, data *curve_T) {
 	c.SSEvent("drawnfil", gin.H {
 		"success": true,
 		"message": "ok",
@@ -536,8 +543,8 @@ func startPing(conns map[string]connection_I) {
 		for _, c := range conns {
 			go ping(c)
 		}
-		modTime := time.Now().Unix() % config.period
-		time.Sleep(time.Second * time.Duration(config.period - modTime))
+		modTime := time.Now().Unix() % 5
+		time.Sleep(time.Second * time.Duration(5 - modTime))
 	}
 }
 

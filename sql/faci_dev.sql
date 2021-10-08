@@ -51,7 +51,7 @@ begin
 	set i = 0;
 	set second = 300;
 	while i < 288 do
-		insert into 5_mins_data values(null, from_unixtime(unix_timestamp(current_second) div second * second - second * i), 0);
+		insert into 5_mins_data values(null, from_unixtime(unix_timestamp(current_second) div second * second - second * i), 1);
 		set i = i + 1;
 	end while;
 end $$

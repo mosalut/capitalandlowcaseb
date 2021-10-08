@@ -29,12 +29,12 @@ func initDB() {
 		log.Fatal(err)
 	}
 
-	stmtInsertHourData, err = db.Prepare("insert into hour_data values(null, from_unixtime(unix_timestamp(current_timestamp) div ? * ?), ?, ?, ?)")
+	stmtInsertHourData, err = db.Prepare("insert into hour_data values(null, from_unixtime(? div ? * ?), ?, ?, ?)")
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	stmtInsert5MinsData, err = db.Prepare("insert into 5_mins_data values(null, ?, ?)")
+	stmtInsert5MinsData, err = db.Prepare("insert into 5_mins_data values(null, from_unixtime(? div ? * ?), ?)")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -64,7 +64,7 @@ func initDB() {
 		log.Fatal(err)
 	}
 
-	stmtQuery5MinsData, err = db.Prepare("select create_time, cfil_to_fil from 5_mins_data order by create_time desc")
+	stmtQuery5MinsData, err = db.Prepare("select cfil_to_fil from 5_mins_data order by create_time desc")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -80,9 +80,10 @@ func initDB() {
 	}
 }
 
-func insertHourData(lowcaseB, capitalB, countDrawnsFil float64) (int64, error) {
+func insertHourData(createTime time.Time, lowcaseB, capitalB, countDrawnsFil float64) (int64, error) {
 	period := strconv.FormatInt(config.period, 10)
-	result, err := stmtInsertHourData.Exec(period, period, lowcaseB, capitalB, countDrawnsFil)
+
+	result, err := stmtInsertHourData.Exec(createTime.Unix(), period, period, lowcaseB, capitalB, countDrawnsFil)
 	if err != nil {
 		return 0, err
 	}
@@ -93,6 +94,17 @@ func insertHourData(lowcaseB, capitalB, countDrawnsFil float64) (int64, error) {
 	}
 
 	return id, nil
+}
+
+func insert5MinsData(createTime time.Time, cfilToFil float64) error {
+	period := strconv.FormatInt(300, 10)
+
+	_, err := stmtInsert5MinsData.Exec(createTime.Unix(), period, period, cfilToFil)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func insertFilNodes(id int64, filNodes map[string]filNode_T) error {
@@ -136,12 +148,9 @@ func initCacheData() {
 		cache.FilNodes[key] = filNode_T{address, balance, workerBalance, qualityAdjPower, availableBalance, pledge, vestingFunds, singletT}
 	}
 
-	rows5, err := stmtQuery5MinsData.Query()
+	err = stmtQuery5MinsData.QueryRow().Scan(&cache.CfToF)
 	if err != nil {
 		log.Fatal(err)
-	}
-	defer rows5.Close()
-	for rows5.Next() {
 	}
 }
 
@@ -166,23 +175,6 @@ func getLowcaseBCurveData() ([]curve_T, error) {
 		}
 		curves = append([]curve_T{curve}, curves...)
 	}
-
-	/*
-	filDrawns, err := getData24()
-	if err != nil {
-		return nil, err
-	}
-
-	cfilDrawns := getCfilDrawnsData()
-
-	rows5, err := stmtQuery5MinsData.Query()
-	if err != nil {
-		return nil, err
-	}
-	defer rows5.Close()
-	for rows5.Next() {
-	}
-	*/
 
 	return curves, nil
 }

@@ -2,8 +2,6 @@ package main
 
 import (
 	"sync"
-	"crypto/rand"
-	"math/big"
 	"net/http"
 	"encoding/json"
 	"strconv"
@@ -52,16 +50,17 @@ func listenRequests() {
 		modTime := time.Now().Unix() % config.period
 		time.Sleep(time.Second * time.Duration(config.period - modTime))
 
+		createTime := time.Now()
+
 		wg := &sync.WaitGroup{}
-		wg.Add(5)
-		go requestCfilToFil(wg)
+		wg.Add(4)
 		go requestB(wg)
 		go requestLoss(wg)
 		go requestDrawnFil(wg)
 		go requestFilNodes(wg)
 		wg.Wait()
 
-		id, err := insertHourData(cache.LowcaseB, cache.CapitalB, cache.DrawnFil)
+		id, err := insertHourData(createTime, cache.LowcaseB, cache.CapitalB, cache.DrawnFil)
 		if err != nil {
 			log.Error(err)
 			continue
@@ -81,11 +80,10 @@ func listenRequests() {
 			cc := c.(*conn_T)
 			go func() {
 				defer recoverPanic()
-				cc.cfToFCh <- cache.CfToF
-				cc.lowcaseBCh <- cache.LowcaseB
-				cc.capitalBCh <- cache.CapitalB
+				cc.lowcaseBCh <- &curve_T{createTime, cache.LowcaseB}
+				cc.capitalBCh <- &curve_T{createTime, cache.CapitalB}
 				cc.lossCh <- cache.Loss
-				cc.drawnFilCh <- cache.DrawnFil
+				cc.drawnFilCh <- &curve_T{createTime, cache.DrawnFil}
 				cc.filNodesCh <- cache.FilNodes
 			}()
 		}
@@ -94,7 +92,7 @@ func listenRequests() {
 			cc := c.(*conn2_T)
 			go func() {
 				defer recoverPanic()
-				cc.capitalBCh <- cache.CapitalB
+				cc.capitalBCh <- &curve_T{createTime, cache.CapitalB}
 				/*
 				filDrawns, err := getDrawnFilCurveData()
 				if err != nil {
@@ -114,33 +112,29 @@ func listenRequests() {
 
 }
 
-// 质押余额/时
-func getData24() ([]curve_T, error) {
-	curve := make([]curve_T, 24, 24)
+func listenRequests5min() {
+	for {
+		modTime := time.Now().Unix() % 300
+		time.Sleep(time.Second * time.Duration(300 - modTime))
 
-	for i, _ := range curve {
-		max := big.NewInt(65536)
-		integerI, err := rand.Int(rand.Reader, max)
+		createTime := time.Now()
+
+		requestCfilToFil()
+
+		err := insert5MinsData(createTime, cache.CfToF)
 		if err != nil {
-			return nil, err
-		}
-		decimalI, err := rand.Int(rand.Reader, max)
-		if err != nil {
-			return nil, err
+			log.Error(err)
+			continue
 		}
 
-		integerF := big.NewFloat(0)
-		integerF.SetInt(integerI)
-		decimalF := big.NewFloat(0)
-		decimalF.SetInt(decimalI)
-
-		integer, _ := integerF.Float64()
-		decimal, _ := decimalF.Float64()
-		curve[i].Value = integer + decimal / 100000
-		curve[i].CreateTime = time.Unix(time.Now().Unix() / config.period * config.period, 0)
+		for _, c := range conns {
+			cc := c.(*conn_T)
+			go func() {
+				defer recoverPanic()
+				cc.cfToFCh <- &curve_T{createTime, cache.CfToF}
+			}()
+		}
 	}
-
-	return curve, nil
 }
 
 // CFIL净值/5分钟
@@ -156,8 +150,7 @@ func getCfilDrawnsData() []curve_T {
 	return curve
 }
 
-func requestCfilToFil(wg *sync.WaitGroup) {
-	defer wg.Done()
+func requestCfilToFil() {
 	cache.CfToF = 1.2
 }
 
