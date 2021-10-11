@@ -52,7 +52,6 @@ delimiter $$
 create procedure insertInitData()
 begin
 	declare i int default 0;
-#	declare second int default 3600;
 	declare second int default 60;
 	declare current_second bigint default current_timestamp;
 	while i < 24 do
@@ -61,7 +60,7 @@ begin
 	end while;
 
 	set i = 0;
-	set second = 300;
+	set second = 10;
 	while i < 288 do
 		insert into 5_mins_data values(null, from_unixtime(unix_timestamp(current_second) div second * second - second * i), 1);
 		set i = i + 1;

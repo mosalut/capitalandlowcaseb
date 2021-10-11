@@ -26,6 +26,7 @@ type server_T struct {
 type config_T struct {
 	logLevelKey string
 	period int64
+	period5 int64
 	sms int
 	server_T
 	database_T
@@ -43,6 +44,10 @@ func readConf() {
 	config = &config_T{}
 	config.logLevelKey = cfg.Section(ini.DEFAULT_SECTION).Key("log_level_key").String()
 	config.period, err = cfg.Section(ini.DEFAULT_SECTION).Key("period").Int64()
+	if err != nil {
+		ol.Fatal(err)
+	}
+	config.period5, err = cfg.Section(ini.DEFAULT_SECTION).Key("period_5").Int64()
 	if err != nil {
 		ol.Fatal(err)
 	}

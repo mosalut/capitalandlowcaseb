@@ -348,6 +348,7 @@ func getCurves (c *gin.Context) {
 			return
 		}
 
+		log.Info(lowcaseBs)
 		c.JSON(http.StatusOK, gin.H {
 			"success": true,
 			"message": "ok",

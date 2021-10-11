@@ -1,10 +1,12 @@
 package main
 
 import (
+	"bytes"
 	"sync"
 	"net/http"
 	"encoding/json"
 	"strconv"
+	"math/big"
 	"time"
 )
 
@@ -16,6 +18,10 @@ const (
 
 	PAGE_URL = "https://filfox.info/api/v1/address/"
 	PAGE_URL_SUB_MINING = "/mining-stats?duration=24h"
+
+	CONTRACT_URL = "https://data-seed-prebsc-1-s1.binance.org:8545/"
+	CONTRACT_ADDRESS_FREEERC20 = "0xfcd60BC1c495cCb9A5539758CCc18766310653F6"
+	CONTRACT_ADDRESS_VAULT = "0x8F7DEB527EE6C06cD34C54bA6d424C62c9634f61"
 )
 
 type filNode_T struct {
@@ -44,6 +50,13 @@ type cache_T struct {
 }
 
 var cache = cache_T {FilNodes: make(map[string]filNode_T)}
+
+type contractParams_T struct {
+	Method string `json:"method"`
+	Sync int `json:"id"`
+	JsonRPC string `json:"jsonrpc"`
+	Data interface{} `json:"params"`
+}
 
 func listenRequests() {
 	for {
@@ -114,8 +127,8 @@ func listenRequests() {
 
 func listenRequests5min() {
 	for {
-		modTime := time.Now().Unix() % 300
-		time.Sleep(time.Second * time.Duration(300 - modTime))
+		modTime := time.Now().Unix() % config.period5
+		time.Sleep(time.Second * time.Duration(config.period5 - modTime))
 
 		createTime := time.Now()
 
@@ -151,7 +164,38 @@ func getCfilDrawnsData() []curve_T {
 }
 
 func requestCfilToFil() {
-	cache.CfToF = 1.2
+	pData := []interface{}{map[string]string{"to": CONTRACT_ADDRESS_VAULT, "data": "0x4661cb8a"}, "latest"}
+	params := &contractParams_T{"eth_call", 1, "2.0", pData}
+	buffer := new(bytes.Buffer)
+	json.NewEncoder(buffer).Encode(params)
+	resp, err := http.Post(CONTRACT_URL, "application/json", buffer)
+	if err != nil {
+		log.Error(err)
+		return
+	}
+	defer resp.Body.Close()
+	data := make(map[string]interface{})
+	err = json.NewDecoder(resp.Body).Decode(&data)
+	if err != nil {
+		log.Error(err)
+		return
+	}
+
+//	log.Info(data)
+
+	cFtoF := big.NewFloat(0)
+	B1e18 := big.NewFloat(1e18)
+	_, ok := cFtoF.SetString(data["result"].(string))
+	if !ok {
+		log.Error("can not turn to *big.Float")
+		return
+	}
+
+	cFtoF.Quo(cFtoF, B1e18)
+
+//	log.Info(cFtoF)
+
+	cache.CfToF, _ = cFtoF.Float64()
 }
 
 func requestB(wg *sync.WaitGroup) {

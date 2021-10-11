@@ -28,6 +28,7 @@ func init() {
 
 func main() {
 	go listenRequests()
+	go listenRequests5min()
 	go startPing(conns)
 	go startPing(conns2)
 	runHTTP()
