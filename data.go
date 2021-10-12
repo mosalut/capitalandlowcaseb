@@ -106,19 +106,7 @@ func listenRequests() {
 			go func() {
 				defer recoverPanic()
 				cc.capitalBCh <- &curve_T{createTime, cache.CapitalB}
-				/*
-				filDrawns, err := getDrawnFilCurveData()
-				if err != nil {
-					log.Error(err)
-				}
-
-				cfilDrawns, err := getDrawnCfilCurveData()
-				if err != nil {
-					log.Error(err)
-				}
-				cc.filDrawnsCh <- filDrawns
-				cc.cfilDrawnsCh <- cfilDrawns
-				*/
+				cc.drawnFilCh <- &curve_T{createTime, cache.DrawnFil}
 			}()
 		}
 	}
@@ -142,6 +130,14 @@ func listenRequests5min() {
 
 		for _, c := range conns {
 			cc := c.(*conn_T)
+			go func() {
+				defer recoverPanic()
+				cc.cfToFCh <- &curve_T{createTime, cache.CfToF}
+			}()
+		}
+
+		for _, c := range conns2 {
+			cc := c.(*conn2_T)
 			go func() {
 				defer recoverPanic()
 				cc.cfToFCh <- &curve_T{createTime, cache.CfToF}

@@ -76,8 +76,8 @@ func (conn *conn_T)disconnect(key string) {
 
 type conn2_T struct {
 	capitalBCh chan *curve_T
-	filDrawnsCh chan []curve_T
-	cfilDrawnsCh chan []curve_T
+	drawnFilCh chan *curve_T
+	cfToFCh chan *curve_T
 
 	pingCh chan byte
 }
@@ -121,6 +121,7 @@ func runHTTP() {
 	r.GET("/testapi", testAPI)
 	r.GET("/capitalb", getCapitalB)
 	r.GET("/curves", getCurves)
+	r.GET("/curves2", getCurves2)
 	r.GET("/signout", signOut)
 	r.GET("/", initData)
 	r.POST("/code", getCode)
@@ -362,6 +363,28 @@ func getCurves (c *gin.Context) {
 	}
 }
 
+func getCurves2 (c *gin.Context) {
+	filDrawns, err := getDrawnFilCurveData()
+	if err != nil {
+		log.Info(err)
+		return
+	}
+	cfToFs, err := getCfToFCurveData()
+	if err != nil {
+		log.Info(err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H {
+		"success": true,
+		"message": "ok",
+		"data": gin.H {
+			"fildrawns": filDrawns,
+			"cftofs": cfToFs,
+		},
+	})
+}
+
 func signOut (c *gin.Context) {
 	account := c.Query("account")
 	key := c.Query("key")
@@ -438,8 +461,8 @@ func sseHandler2(c *gin.Context) {
 
 	conn := &conn2_T {
 		make(chan *curve_T),
-		make(chan []curve_T),
-		make(chan []curve_T),
+		make(chan *curve_T),
+		make(chan *curve_T),
 		make(chan byte),
 	}
 	conns2[key] = conn
@@ -448,12 +471,10 @@ func sseHandler2(c *gin.Context) {
 		select {
 		case data := <-conn.capitalBCh:
 			pushCapitalB(c, data) // 质押余额B
-			/*
-		case data := <-conn.filDrawnsCh:
-			pushFilDrawns(c, data) // 总提取数额FIL
-		case data := <-conn.cfilDrawnsCh:
-			pushCfilDrawns(c, data) // CFIL净值
-			*/
+		case data := <-conn.drawnFilCh:
+			pushDrawnFil(c, data) // 总提取数额FIL
+		case data := <-conn.cfToFCh:
+			pushCfilToFil(c, data) // CFIL净值
 		case <-conn.pingCh:
 			pong(c)
 		}
